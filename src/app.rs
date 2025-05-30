@@ -1,24 +1,19 @@
-use std::{
-    process::Command,
-    sync::{Arc, mpsc::Sender},
-};
+use std::{process::Command, sync::Arc, thread, time::Duration};
 
 use ratatui::{
-    crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style, Stylize},
-    symbols::border,
     text::{Line, Span, Text},
     widgets::{Block, BorderType, List, ListItem, Paragraph},
 };
 
 use crate::{
-    state::{self, Pane, State},
+    state::{Pane, State},
     tui,
 };
 
 pub struct Tui {
-    state: State,
+    state: Arc<State>,
 }
 
 impl Tui {
@@ -61,24 +56,28 @@ impl Tui {
             .border_type(BorderType::Rounded)
             .title("Search".bold())
             .title_alignment(ratatui::layout::Alignment::Left);
-        if let Ok(search) = self.state.search.lock() {
-            let search_input = Paragraph::new(search.query.clone())
+        if let Ok(search_query) = self.state.search.query.lock() {
+            let search_input = Paragraph::new(search_query.clone())
                 .left_aligned()
                 .block(search_bar)
                 .style(search_bar_style);
             frame.render_widget(search_input, splits[0]);
-
+        }
+        if let Ok(search_results) = self.state.search.results.lock() {
             let active_list_item = Style::new().bold().bg(Color::White).fg(Color::Black);
-            let list = List::new(search.results.iter().enumerate().map(|(i, item)| {
-                if i == search.selected_result {
-                    ListItem::new(item.display_text.clone()).style(active_list_item)
-                } else {
-                    ListItem::new(item.display_text.clone()).style(Style::default())
-                }
-            }))
-            .block(Block::bordered().border_type(BorderType::Rounded))
-            .style(list_style);
-            frame.render_widget(list, splits[1]);
+
+            if let Ok(selected_search_result) = self.state.search.selected_result.lock() {
+                let list = List::new(search_results.iter().enumerate().map(|(i, item)| {
+                    if i == *selected_search_result {
+                        ListItem::new(item.display_text.clone()).style(active_list_item)
+                    } else {
+                        ListItem::new(item.display_text.clone()).style(Style::default())
+                    }
+                }))
+                .block(Block::bordered().border_type(BorderType::Rounded))
+                .style(list_style);
+                frame.render_widget(list, splits[1]);
+            }
         } else {
             let list = List::new(vec![""])
                 .block(Block::bordered().border_type(BorderType::Rounded))

@@ -1,52 +1,47 @@
-use std::{process::Command, sync::mpsc::Sender};
+use std::{process::Command, sync::Arc, thread, time::Duration};
 
-use crate::state::{self, SearchResult, State, StateEvent, StateResponse};
+use crate::state::{SearchResult, State};
 
 pub struct Worker {
-    tx_state: Sender<StateEvent>,
+    state: Arc<State>,
     search_query: String,
 }
 
 impl Worker {
-    pub fn new(tx_state: Sender<StateEvent>) -> Self {
+    pub fn new(state: Arc<State>) -> Self {
         Self {
-            tx_state,
+            state,
             search_query: String::default(),
         }
     }
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         loop {
-            if State::sync_worker(&self.tx_state) {
-                if let Some(StateResponse::SearchQuery(search_query)) =
-                    State::get(&self.tx_state, state::StateItemType::SearchQuery)
-                {
-                    if search_query != self.search_query {
-                        self.brew_search(search_query);
-                    }
+            if let Ok(search_query) = self.state.search.query.try_lock() {
+                if *search_query != self.search_query {
+                    self.search_query = search_query.clone();
                 }
-                if let Some(StateResponse::ShouldQuit(should_quit)) =
-                    State::get(&self.tx_state, state::StateItemType::ShouldQuit)
-                {
-                    if should_quit {
-                        break;
-                    }
+            }
+
+            if let Ok(should_quit) = self.state.should_quit.try_lock() {
+                if *should_quit {
+                    break;
                 }
-            };
+            }
         }
     }
 
-    fn brew_search(&self, search_query: String) {
-        if !search_query.is_empty() {
+    fn brew_search(&self) {
+        if !self.search_query.is_empty() {
             let out = String::from_utf8(
                 Command::new("brew")
                     .arg("search")
-                    .arg(&search_query)
+                    .arg(&self.search_query)
                     .output()
                     .expect("ls failed to execute")
                     .stdout,
             )
             .expect("unable to parse string");
-            let search_results = out
+            let results = out
                 .split("\n")
                 .filter_map(|result| {
                     if !result.is_empty() {
@@ -58,18 +53,20 @@ impl Worker {
                     }
                 })
                 .collect::<Vec<_>>();
-            if search_results.len() > 0 {
-                State::set(
-                    &self.tx_state,
-                    StateEvent::SetSearchResults(Some(search_results)),
-                )
-                .unwrap();
-            } else {
-                State::set(&self.tx_state, StateEvent::SetSearchResults(None)).unwrap();
+            if let Ok(mut search_results) = self.state.search.results.try_lock() {
+                if results.len() > 0 {
+                    *search_results = results;
+                } else {
+                    *search_results = Vec::new();
+                }
             }
         } else {
-            State::set(&self.tx_state, StateEvent::SetSearchResults(None)).unwrap();
+            if let Ok(mut search_results) = self.state.search.results.try_lock() {
+                *search_results = Vec::new();
+            }
         }
-        State::set(&self.tx_state, StateEvent::SetSearchSelectedResult(0)).unwrap();
+        if let Ok(mut selected_search_result) = self.state.search.selected_result.try_lock() {
+            *selected_search_result = 0;
+        }
     }
 }

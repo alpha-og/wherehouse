@@ -31,16 +31,16 @@ pub struct SearchResult {
 }
 
 #[derive(Default)]
-struct SearchState {
-    pub query: String,
-    pub results: Vec<SearchResult>,
-    pub selected_result: usize,
+pub struct SearchState {
+    pub query: Arc<Mutex<String>>,
+    pub results: Arc<Mutex<Vec<SearchResult>>>,
+    pub selected_result: Arc<Mutex<usize>>,
 }
 
 pub struct State {
     pub current_pane: Arc<Mutex<Pane>>,
     pub input_mode: Arc<Mutex<InputMode>>,
-    pub search: Arc<Mutex<SearchState>>,
+    pub search: SearchState,
     pub should_quit: Arc<Mutex<bool>>,
 }
 
@@ -49,7 +49,7 @@ impl State {
         Self {
             current_pane: Arc::new(Mutex::new(Pane::SearchInput)),
             input_mode: Arc::new(Mutex::new(InputMode::Insert)),
-            search: Arc::new(Mutex::new(SearchState::default())),
+            search: SearchState::default(),
             should_quit: Arc::new(Mutex::new(false)),
         }
     }
