@@ -1,8 +1,8 @@
-use std::sync::{Arc, mpsc::Sender};
+use std::sync::Arc;
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 
-use crate::state::{self, InputMode, Pane, State};
+use crate::state::{InputMode, Pane, State};
 
 pub struct InputHandler {
     state: Arc<State>,
