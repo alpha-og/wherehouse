@@ -1,84 +1,45 @@
-use std::{process::Command, sync::mpsc, thread, time::Duration};
+use std::{
+    fmt::Display,
+    process::Command,
+    sync::mpsc::{self, Sender},
+    thread,
+    time::Duration,
+};
 
 use color_eyre::{eyre::Context, owo_colors::OwoColorize};
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout},
-    style::{Color, Style, Stylize},
+    style::{Color, Modifier, Style, Stylize},
     symbols::border,
-    text::{Line, Text},
-    widgets::{Block, List, ListItem, Paragraph},
+    text::{Line, Span, Text},
+    widgets::{Block, BorderType, List, ListItem, Paragraph},
 };
 
 use crate::{
-    input, tui,
-    worker::{self, WorkerEvent},
+    state::{self, Pane, State, StateEvent, StateItemType, StateResponse},
+    tui,
 };
 
-enum Pane {
-    Search,
-    List,
+pub struct Tui {
+    tx_state: Sender<StateEvent>,
 }
 
-enum InputMode {
-    Normal,
-    Insert,
-}
-
-pub enum TuiEvent {
-    KeyInput(KeyEvent),
-    SearchResult(SearchResults),
-}
-
-pub struct App {
-    current_pane: Pane,
-    search_query: String,
-    search_results: SearchResults,
-    input_mode: InputMode,
-    quit: bool,
-}
-
-pub struct SearchResults {
-    pub selected_index: usize,
-    pub results: Vec<String>,
-}
-
-impl Default for SearchResults {
-    fn default() -> Self {
-        Self {
-            selected_index: 0,
-            results: Vec::new(),
-        }
+impl Tui {
+    pub fn new(tx_state: Sender<StateEvent>) -> Self {
+        Self { tx_state }
     }
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            current_pane: Pane::Search,
-            search_query: String::new(),
-            search_results: SearchResults::default(),
-            input_mode: InputMode::Normal,
-            quit: false,
-        }
-    }
-}
-
-impl App {
-    pub fn run(
-        &mut self,
-        terminal: &mut tui::Tui,
-        rx: mpsc::Receiver<TuiEvent>,
-        tx_worker: mpsc::Sender<worker::WorkerEvent>,
-        _tx_input: mpsc::Sender<input::InputEvent>,
-    ) -> color_eyre::Result<()> {
-        while !self.quit {
-            terminal.draw(|frame| self.draw(frame))?;
-            match rx.recv()? {
-                TuiEvent::KeyInput(key_input) => self
-                    .handle_key_event(key_input, tx_worker.clone())
-                    .wrap_err_with(|| format!("handling key event failed:\n{key_input:#?}"))?,
-                TuiEvent::SearchResult(search_results) => self.search_results = search_results,
+    pub fn run(&mut self, terminal: &mut tui::Tui) -> color_eyre::Result<()> {
+        loop {
+            if State::sync_tui(&self.tx_state) {
+                terminal.draw(|frame| self.draw(frame))?;
+            };
+            if let Some(StateResponse::ShouldQuit(should_quit)) =
+                State::get(&self.tx_state, state::StateItemType::ShouldQuit)
+            {
+                if should_quit {
+                    break;
+                }
             }
         }
         Ok(())
@@ -92,43 +53,59 @@ impl App {
         ])
         .split(frame.area());
 
-        let mut active_style = Style::new().bold().fg(Color::Red);
+        let active_style = Style::new().bold().fg(Color::Red);
         let mut search_bar_style = Style::default();
         let mut list_style = Style::default();
 
-        match self.current_pane {
-            Pane::Search => search_bar_style = active_style,
-            Pane::List => list_style = active_style,
-            _ => {}
+        if let Some(StateResponse::CurrentPane(current_pane)) =
+            State::get(&self.tx_state, StateItemType::CurrentPane)
+        {
+            match current_pane {
+                Pane::SearchInput => search_bar_style = active_style,
+                Pane::SearchResults => list_style = active_style,
+                _ => {}
+            }
         }
 
         let search_bar = Block::bordered()
+            .border_type(BorderType::Rounded)
             .title("Search".bold())
             .title_alignment(ratatui::layout::Alignment::Left);
-        let search_input = Paragraph::new(self.search_query.clone())
-            .left_aligned()
-            .block(search_bar)
-            .style(search_bar_style);
-        frame.render_widget(search_input, splits[0]);
+        if let Some(StateResponse::SearchQuery(search_query)) =
+            State::get(&self.tx_state, StateItemType::SearchQuery)
+        {
+            let search_input = Paragraph::new(search_query)
+                .left_aligned()
+                .block(search_bar)
+                .style(search_bar_style);
+            frame.render_widget(search_input, splits[0]);
+        }
 
-        let active_list_item = Style::new().bold().fg(Color::Magenta);
+        let active_list_item = Style::new().bold().bg(Color::White).fg(Color::Black);
 
-        let list = List::new(
-            self.search_results
-                .results
-                .iter()
-                .enumerate()
-                .map(|(i, item)| {
-                    if i == self.search_results.selected_index {
-                        ListItem::new(item.clone()).style(active_list_item)
+        if let Some(StateResponse::SearchResults(Some(search_results))) =
+            State::get(&self.tx_state, StateItemType::SearchResults)
+        {
+            if let Some(StateResponse::SelectedSearchResult(selected_search_result)) =
+                State::get(&self.tx_state, StateItemType::SearchSelectedResult)
+            {
+                let list = List::new(search_results.iter().enumerate().map(|(i, item)| {
+                    if i == selected_search_result {
+                        ListItem::new(item.display_text.clone()).style(active_list_item)
                     } else {
-                        ListItem::new(item.clone()).style(Style::default())
+                        ListItem::new(item.display_text.clone()).style(Style::default())
                     }
-                }),
-        )
-        .block(Block::bordered())
-        .style(list_style);
-        frame.render_widget(list, splits[1]);
+                }))
+                .block(Block::bordered().border_type(BorderType::Rounded))
+                .style(list_style);
+                frame.render_widget(list, splits[1]);
+            }
+        } else {
+            let list = List::new(vec![""])
+                .block(Block::bordered().border_type(BorderType::Rounded))
+                .style(list_style);
+            frame.render_widget(list, splits[1]);
+        }
 
         let homebrew_version = String::from_utf8(
             Command::new("brew")
@@ -142,65 +119,22 @@ impl App {
             .strip_suffix("\n")
             .expect("failed to strip newline");
 
-        let status_bar =
-            Paragraph::new(format!("WhereHouse 0.1.0 | {homebrew_version}")).right_aligned();
-        frame.render_widget(status_bar, splits[2]);
-    }
-
-    fn handle_key_event(
-        &mut self,
-        key_event: KeyEvent,
-        tx_worker: mpsc::Sender<WorkerEvent>,
-    ) -> color_eyre::Result<()> {
-        match self.current_pane {
-            Pane::Search => match self.input_mode {
-                InputMode::Normal => match key_event.code {
-                    KeyCode::Char('q') => self.quit(),
-                    KeyCode::Char('i') => self.input_mode = InputMode::Insert,
-                    KeyCode::Tab => self.current_pane = Pane::List,
-                    _ => {}
-                },
-                InputMode::Insert => match key_event.code {
-                    KeyCode::Char(ch) => {
-                        self.search_query.push(ch);
-                    }
-                    KeyCode::Backspace => {
-                        self.search_query.pop();
-                    }
-                    KeyCode::Esc => self.input_mode = InputMode::Normal,
-                    KeyCode::Enter => {
-                        tx_worker
-                            .send(WorkerEvent::Search(self.search_query.clone()))
-                            .unwrap();
-                    }
-
-                    _ => {}
-                },
-            },
-            Pane::List => match self.input_mode {
-                InputMode::Normal => match key_event.code {
-                    KeyCode::Char('q') => self.quit(),
-                    KeyCode::Char('k') => self.select_previous_search_result(),
-                    KeyCode::Char('j') => self.select_next_search_result(),
-                    KeyCode::Tab => self.current_pane = Pane::Search,
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        let status_bar_splits =
+            Layout::horizontal([Constraint::Percentage(70), Constraint::Fill(1)]).split(splits[2]);
+        if let Some(StateResponse::InputMode(input_mode)) =
+            State::get(&self.tx_state, StateItemType::InputMode)
+        {
+            let status_bar_left = Span::styled(
+                format!(" {} ", input_mode),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            );
+            frame.render_widget(status_bar_left, status_bar_splits[0]);
         }
-
-        Ok(())
-    }
-
-    fn select_previous_search_result(&mut self) {
-        self.search_results.selected_index = self.search_results.selected_index.saturating_sub(1);
-    }
-    fn select_next_search_result(&mut self) {
-        self.search_results.selected_index = self.search_results.selected_index.saturating_add(1);
-    }
-
-    fn quit(&mut self) {
-        self.quit = true;
+        let status_bar_right = Paragraph::new(format!("WhereHouse 0.1.0 | {homebrew_version}"))
+            .right_aligned()
+            .fg(Color::Green);
+        frame.render_widget(status_bar_right, status_bar_splits[1]);
     }
 }
