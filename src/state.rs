@@ -32,16 +32,16 @@ pub struct SearchResult {
 
 #[derive(Default)]
 struct SearchState {
-    query: String,
-    results: Vec<SearchResult>,
-    selected_result: usize,
+    pub query: String,
+    pub results: Vec<SearchResult>,
+    pub selected_result: usize,
 }
 
 pub struct State {
-    current_pane: Arc<Mutex<Pane>>,
-    input_mode: Arc<Mutex<InputMode>>,
-    search: Arc<Mutex<SearchState>>,
-    should_quit: Arc<Mutex<bool>>,
+    pub current_pane: Arc<Mutex<Pane>>,
+    pub input_mode: Arc<Mutex<InputMode>>,
+    pub search: Arc<Mutex<SearchState>>,
+    pub should_quit: Arc<Mutex<bool>>,
 }
 
 impl State {
