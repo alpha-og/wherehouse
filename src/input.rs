@@ -1,27 +1,23 @@
-use std::sync::mpsc::Sender;
+use std::sync::{Arc, mpsc::Sender};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 
-use crate::state::{
-    self, InputMode, Pane, State, StateEvent,
-    StateItemType::{self, ShouldQuit},
-    StateResponse,
-};
+use crate::state::{self, InputMode, Pane, State};
 
 pub struct InputHandler {
-    tx_state: Sender<state::StateEvent>,
+    state: Arc<State>,
 }
 
 impl InputHandler {
-    pub fn new(tx_state: Sender<state::StateEvent>) -> Self {
-        Self { tx_state }
+    pub fn new(state: Arc<State>) -> Self {
+        Self { state }
     }
     pub fn run(&mut self) {
         loop {
-            if let Some(StateResponse::ShouldQuit(should_quit)) =
-                State::get(&self.tx_state, ShouldQuit)
-            {
-                if !should_quit {
+            if let Ok(should_quit) = self.state.should_quit.try_lock() {
+                if *should_quit {
+                    break;
+                } else {
                     self.capture_input();
                 }
             }
@@ -37,14 +33,10 @@ impl InputHandler {
     }
 
     fn handle_key_press(&self, key_event: event::KeyEvent) {
-        if let Some(StateResponse::CurrentPane(current_pane)) =
-            State::get(&self.tx_state, StateItemType::CurrentPane)
-        {
-            if let Some(StateResponse::InputMode(input_mode)) =
-                State::get(&self.tx_state, StateItemType::InputMode)
-            {
-                match current_pane {
-                    Pane::SearchInput => match input_mode {
+        if let Ok(current_pane) = self.state.current_pane.lock() {
+            if let Ok(input_mode) = self.state.input_mode.lock() {
+                match *current_pane {
+                    Pane::SearchInput => match *input_mode {
                         InputMode::Normal => match key_event.code {
                             KeyCode::Char('q') => self.quit(),
                             KeyCode::Char('i') => self.switch_input_mode(InputMode::Insert),
@@ -66,7 +58,7 @@ impl InputHandler {
                         },
                         _ => {}
                     },
-                    Pane::SearchResults => match input_mode {
+                    Pane::SearchResults => match *input_mode {
                         InputMode::Normal => match key_event.code {
                             KeyCode::Char('q') => self.quit(),
                             KeyCode::Char('k') => self.select_previous_search_result(),
@@ -83,62 +75,47 @@ impl InputHandler {
     }
 
     fn quit(&self) {
-        State::set(&self.tx_state, StateEvent::SetShouldQuit(true)).unwrap();
+        if let Ok(mut should_quit) = self.state.should_quit.lock() {
+            *should_quit = true;
+        }
     }
 
     fn switch_input_mode(&self, input_mode: InputMode) {
-        State::set(&self.tx_state, StateEvent::SetInputMode(input_mode)).unwrap();
+        if let Ok(mut current_input_mode) = self.state.input_mode.lock() {
+            *current_input_mode = input_mode;
+        }
     }
 
     fn switch_pane(&self, pane: Pane) {
-        State::set(&self.tx_state, StateEvent::SetCurrentPane(pane)).unwrap();
+        if let Ok(mut current_pane) = self.state.current_pane.lock() {
+            *current_pane = pane;
+        }
     }
 
     fn append_search_query(&self, ch: char) {
-        if let Some(StateResponse::SearchQuery(mut search_query)) =
-            State::get(&self.tx_state, StateItemType::SearchQuery)
-        {
-            search_query.push(ch);
-
-            self.tx_state
-                .send(StateEvent::SetSearchQuery(search_query))
-                .unwrap();
+        if let Ok(mut search) = self.state.search.lock() {
+            search.query.push(ch);
+            search.selected_result = 0;
         }
     }
 
     fn pop_search_query(&self) {
-        if let Some(StateResponse::SearchQuery(mut search_query)) =
-            State::get(&self.tx_state, StateItemType::SearchQuery)
-        {
-            search_query.pop();
-
-            State::set(&self.tx_state, StateEvent::SetSearchQuery(search_query)).unwrap();
+        if let Ok(mut search) = self.state.search.lock() {
+            search.query.pop();
+            search.selected_result = 0;
         }
     }
 
     fn select_previous_search_result(&self) {
-        if let Some(StateResponse::SelectedSearchResult(mut selected_search_result)) =
-            State::get(&self.tx_state, StateItemType::SearchSelectedResult)
-        {
-            selected_search_result = selected_search_result.saturating_sub(1);
-            State::set(
-                &self.tx_state,
-                StateEvent::SetSearchSelectedResult(selected_search_result),
-            )
-            .unwrap();
+        if let Ok(mut search) = self.state.search.lock() {
+            search.selected_result = search.selected_result.saturating_sub(1);
         }
     }
 
     fn select_next_search_result(&self) {
-        if let Some(StateResponse::SelectedSearchResult(mut selected_search_result)) =
-            State::get(&self.tx_state, StateItemType::SearchSelectedResult)
-        {
-            selected_search_result = selected_search_result.saturating_add(1);
-            State::set(
-                &self.tx_state,
-                StateEvent::SetSearchSelectedResult(selected_search_result),
-            )
-            .unwrap();
+        if let Ok(mut search) = self.state.search.lock() {
+            search.selected_result =
+                search.selected_result.saturating_add(1) % search.results.len();
         }
     }
 }
