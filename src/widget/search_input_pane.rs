@@ -1,23 +1,23 @@
 use ratatui::{
     layout::Alignment::Left,
-    style::Style,
-    text::Span,
+    style::{Modifier, Style},
     widgets::{Block, BorderType::Rounded, Paragraph, Widget},
 };
 
-pub struct SearchPane {
-    id: u8,
+pub struct SearchInputPane {
     query: String,
     active: bool,
 }
 
-impl Widget for SearchPane {
+impl Widget for SearchInputPane {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
         let block_style = if self.active {
-            Style::default().fg(ratatui::style::Color::Magenta)
+            Style::default()
+                .fg(ratatui::style::Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
@@ -33,5 +33,23 @@ impl Widget for SearchPane {
             .block(block)
             .style(query_style);
         query.render(area, buf);
+    }
+}
+
+impl Default for SearchInputPane {
+    fn default() -> Self {
+        Self {
+            query: String::default(),
+            active: false,
+        }
+    }
+}
+
+impl SearchInputPane {
+    pub fn query(&mut self, query: String) {
+        self.query = query;
+    }
+    pub fn active(&mut self) {
+        self.active = true;
     }
 }

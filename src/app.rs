@@ -1,4 +1,4 @@
-use std::{process::Command, sync::Arc, thread, time::Duration};
+use std::{process::Command, sync::Arc};
 
 use ratatui::{
     layout::{Constraint, Layout},
@@ -10,6 +10,7 @@ use ratatui::{
 use crate::{
     state::{Pane, State},
     tui,
+    widget::{search_input_pane::SearchInputPane, search_results_pane::SearchResultsPane},
 };
 
 pub struct Tui {
@@ -40,50 +41,29 @@ impl Tui {
         ])
         .split(frame.area());
 
-        let active_style = Style::new().bold().fg(Color::Red);
-        let mut search_bar_style = Style::default();
-        let mut list_style = Style::default();
+        let mut search_input_pane = SearchInputPane::default();
+        let mut search_results_pane = SearchResultsPane::default();
 
         if let Ok(current_pane) = self.state.current_pane.lock() {
             match *current_pane {
-                Pane::SearchInput => search_bar_style = active_style,
-                Pane::SearchResults => list_style = active_style,
+                Pane::SearchInput => search_input_pane.active(),
+                Pane::SearchResults => search_results_pane.active(),
                 _ => {}
             }
-        }
+        };
 
-        let search_bar = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title("Search".bold())
-            .title_alignment(ratatui::layout::Alignment::Left);
         if let Ok(search_query) = self.state.search.query.lock() {
-            let search_input = Paragraph::new(search_query.clone())
-                .left_aligned()
-                .block(search_bar)
-                .style(search_bar_style);
-            frame.render_widget(search_input, splits[0]);
-        }
-        if let Ok(search_results) = self.state.search.results.lock() {
-            let active_list_item = Style::new().bold().bg(Color::White).fg(Color::Black);
+            search_input_pane.query(search_query.clone());
+        };
+        frame.render_widget(search_input_pane, splits[0]);
 
-            if let Ok(selected_search_result) = self.state.search.selected_result.lock() {
-                let list = List::new(search_results.iter().enumerate().map(|(i, item)| {
-                    if i == *selected_search_result {
-                        ListItem::new(item.display_text.clone()).style(active_list_item)
-                    } else {
-                        ListItem::new(item.display_text.clone()).style(Style::default())
-                    }
-                }))
-                .block(Block::bordered().border_type(BorderType::Rounded))
-                .style(list_style);
-                frame.render_widget(list, splits[1]);
-            }
-        } else {
-            let list = List::new(vec![""])
-                .block(Block::bordered().border_type(BorderType::Rounded))
-                .style(list_style);
-            frame.render_widget(list, splits[1]);
-        }
+        if let Ok(search_results) = self.state.search.results.lock() {
+            search_results_pane.results(search_results.to_vec());
+        };
+        if let Ok(selected_search_result) = self.state.search.selected_result.lock() {
+            search_results_pane.select(*selected_search_result);
+        };
+        frame.render_widget(search_results_pane, splits[1]);
 
         let homebrew_version = String::from_utf8(
             Command::new("brew")
