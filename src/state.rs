@@ -30,10 +30,12 @@ pub struct SearchResult {
     pub display_text: String,
 }
 
+pub type SearchResults = Vec<SearchResult>;
+
 #[derive(Default)]
 pub struct SearchState {
     pub query: Arc<Mutex<String>>,
-    pub results: Arc<Mutex<Vec<SearchResult>>>,
+    pub results: Arc<Mutex<SearchResults>>,
     pub selected_result: Arc<Mutex<usize>>,
 }
 
