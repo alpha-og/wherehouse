@@ -1,16 +1,14 @@
 use std::{process::Command, sync::Arc};
 
-use ratatui::{
-    layout::{Constraint, Layout},
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span, Text},
-    widgets::{Block, BorderType, List, ListItem, Paragraph},
-};
+use ratatui::layout::{Constraint, Layout};
 
 use crate::{
     state::{Pane, State},
     tui,
-    widget::{search_input_pane::SearchInputPane, search_results_pane::SearchResultsPane},
+    widget::{
+        search_input_pane::SearchInputPane, search_results_pane::SearchResultsPane,
+        status_bar::StatusBar,
+    },
 };
 
 pub struct Tui {
@@ -34,12 +32,11 @@ impl Tui {
     }
 
     pub fn draw(&self, frame: &mut ratatui::Frame) {
-        let splits = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(frame.area());
+        let main_layout =
+            Layout::vertical(vec![Constraint::Fill(1), Constraint::Length(1)]).split(frame.area());
+
+        let search_layout = Layout::vertical(vec![Constraint::Length(3), Constraint::Fill(1)])
+            .split(main_layout[0]);
 
         let mut search_input_pane = SearchInputPane::default();
         let mut search_results_pane = SearchResultsPane::default();
@@ -55,7 +52,7 @@ impl Tui {
         if let Ok(search_query) = self.state.search.query.lock() {
             search_input_pane.query(search_query.clone());
         };
-        frame.render_widget(search_input_pane, splits[0]);
+        frame.render_widget(search_input_pane, search_layout[0]);
 
         if let Ok(search_results) = self.state.search.results.lock() {
             search_results_pane.results(search_results.to_vec());
@@ -63,7 +60,7 @@ impl Tui {
         if let Ok(selected_search_result) = self.state.search.selected_result.lock() {
             search_results_pane.select(*selected_search_result);
         };
-        frame.render_widget(search_results_pane, splits[1]);
+        frame.render_widget(search_results_pane, search_layout[1]);
 
         let homebrew_version = String::from_utf8(
             Command::new("brew")
@@ -75,22 +72,11 @@ impl Tui {
         .expect("failed to parse Vec<u8> as String");
         let homebrew_version = homebrew_version
             .strip_suffix("\n")
-            .expect("failed to strip newline");
+            .expect("failed to strip newline")
+            .split(" ")
+            .collect::<Vec<_>>()[1];
 
-        let status_bar_splits =
-            Layout::horizontal([Constraint::Percentage(70), Constraint::Fill(1)]).split(splits[2]);
-        if let Ok(input_mode) = self.state.input_mode.lock() {
-            let status_bar_left = Span::styled(
-                format!(" {} ", input_mode),
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            );
-            frame.render_widget(status_bar_left, status_bar_splits[0]);
-        }
-        let status_bar_right = Paragraph::new(format!("WhereHouse 0.1.0 | {homebrew_version}"))
-            .right_aligned()
-            .fg(Color::Green);
-        frame.render_widget(status_bar_right, status_bar_splits[1]);
+        let status_bar = StatusBar::new(self.state.clone());
+        frame.render_widget(status_bar, main_layout[1]);
     }
 }
