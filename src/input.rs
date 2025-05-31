@@ -1,19 +1,24 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::{
+    sync::{Arc, mpsc::Sender},
+    time::Duration,
+};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 
 use crate::{
     state::{InputMode, Pane, State},
-    trace_dbg,
+    worker::WorkerEvent,
+    // trace_dbg,
 };
 
 pub struct InputHandler {
+    tx_worker: Sender<WorkerEvent>,
     state: Arc<State>,
 }
 
 impl InputHandler {
-    pub fn new(state: Arc<State>) -> Self {
-        Self { state }
+    pub fn new(state: Arc<State>, tx_worker: Sender<WorkerEvent>) -> Self {
+        Self { tx_worker, state }
     }
     pub fn run(&mut self) {
         loop {
@@ -26,13 +31,15 @@ impl InputHandler {
         }
     }
     fn capture_input(&self) {
-        if event::poll(Duration::from_millis(50)).unwrap() {
+        if event::poll(Duration::from_millis(10)).unwrap() {
             match event::read().unwrap() {
                 event::Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                     self.handle_key_press(key_event);
                 }
                 _ => {}
             };
+        } else {
+            self.tx_worker.send(WorkerEvent::UpdateSearch).unwrap();
         }
     }
 
@@ -84,18 +91,18 @@ impl InputHandler {
         }
     }
 
-    fn switch_input_mode(&self, input_mode: InputMode) {
-        if let Ok(mut current_input_mode) = self.state.input_mode.lock() {
-            *current_input_mode = input_mode;
-            println!("switched");
-        }
-    }
-
-    fn switch_pane(&self, pane: Pane) {
-        if let Ok(mut current_pane) = self.state.current_pane.lock() {
-            *current_pane = pane;
-        }
-    }
+    // fn switch_input_mode(&self, input_mode: InputMode) {
+    //     if let Ok(mut current_input_mode) = self.state.input_mode.lock() {
+    //         *current_input_mode = input_mode;
+    //         println!("switched");
+    //     }
+    // }
+    //
+    // fn switch_pane(&self, pane: Pane) {
+    //     if let Ok(mut current_pane) = self.state.current_pane.lock() {
+    //         *current_pane = pane;
+    //     }
+    // }
 
     fn append_search_query(&self, ch: char) {
         if let Ok(mut query) = self.state.search.query.lock() {
