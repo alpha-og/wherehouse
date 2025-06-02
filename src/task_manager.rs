@@ -1,3 +1,5 @@
+use tracing::info;
+
 use crate::{
     commands::{self, CommandType},
     state::State,
@@ -48,6 +50,28 @@ impl TaskManager {
                     }
                 });
                 if let Some(worker) = self.pool.insert(CommandType::Search, worker) {
+                    worker.stop()?;
+                }
+            }
+            CommandType::Info => {
+                let state = self.state.clone();
+                let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
+                let worker = Worker::new(tx_task, move || {
+                    let search = state.search.lock().unwrap();
+                    let package_name = match search.results.get(search.selected_result) {
+                        Some(result) => result.display_text.clone(),
+                        None => String::default(),
+                    };
+                    drop(search);
+                    let package_info = commands::info(rx_task, package_name);
+                    let mut search = state.search.lock().unwrap();
+                    if let Some(result) = package_info {
+                        search.selected_result_info = result;
+                    } else {
+                        search.selected_result_info = String::default();
+                    }
+                });
+                if let Some(worker) = self.pool.insert(CommandType::Info, worker) {
                     worker.stop()?;
                 }
             }

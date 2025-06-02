@@ -58,8 +58,9 @@ impl InputHandler {
     }
 
     fn handle_key_press(&mut self, key_event: event::KeyEvent) -> color_eyre::Result<()> {
-        let mut current_pane = self.state.current_pane.lock().unwrap();
-        let mut input_mode = self.state.input_mode.lock().unwrap();
+        let state = self.state.clone();
+        let mut current_pane = state.current_pane();
+        let mut input_mode = state.input_mode.lock().unwrap();
 
         match key_event.code {
             KeyCode::Char('1') => *current_pane = Pane::SearchInput,
@@ -70,7 +71,7 @@ impl InputHandler {
         match *current_pane {
             Pane::SearchInput => match *input_mode {
                 InputMode::Normal => match key_event.code {
-                    KeyCode::Char('q') => self.quit(),
+                    KeyCode::Char('q') => self.quit()?,
                     KeyCode::Char('i') => *input_mode = InputMode::Insert,
                     KeyCode::Char('l') => {
                         let mut search = self.state.search.lock().unwrap();
@@ -85,9 +86,9 @@ impl InputHandler {
                     _ => {}
                 },
                 InputMode::Insert => match key_event.code {
-                    KeyCode::Char(ch) => self.append_search_query(ch),
+                    KeyCode::Char(ch) => self.append_search_query(ch)?,
                     KeyCode::Backspace => {
-                        self.pop_search_query();
+                        self.pop_search_query()?;
                     }
                     KeyCode::Esc => *input_mode = InputMode::Normal,
                     _ => {}
@@ -96,22 +97,23 @@ impl InputHandler {
             },
             Pane::SearchResults => match *input_mode {
                 InputMode::Normal => match key_event.code {
-                    KeyCode::Char('q') => self.quit(),
-                    KeyCode::Char('k') => self.select_previous_search_result(),
-                    KeyCode::Char('j') => self.select_next_search_result(),
+                    KeyCode::Char('q') => self.quit()?,
+                    KeyCode::Char('k') => self.select_previous_search_result()?,
+                    KeyCode::Char('j') => self.select_next_search_result()?,
                     _ => {}
                 },
                 _ => {}
             },
             _ => {}
-        }
+        };
         Ok(())
     }
 
-    fn quit(&self) {
+    fn quit(&self) -> color_eyre::Result<()> {
         if let Ok(mut should_quit) = self.state.should_quit.lock() {
             *should_quit = true;
         }
+        Ok(())
     }
 
     // fn switch_input_mode(&self, input_mode: InputMode) {
@@ -127,39 +129,47 @@ impl InputHandler {
     //     }
     // }
 
-    fn append_search_query(&self, ch: char) {
+    fn append_search_query(&mut self, ch: char) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             search.query.push(ch);
         }
-        self.reset_selected_search_result();
+        self.reset_selected_search_result()?;
+        Ok(())
     }
 
-    fn pop_search_query(&self) {
+    fn pop_search_query(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             search.query.pop();
         }
-        self.reset_selected_search_result();
+        self.reset_selected_search_result()?;
+        Ok(())
     }
 
-    fn reset_selected_search_result(&self) {
+    fn reset_selected_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             search.selected_result = 0;
         }
+        self.task_manager.execute(CommandType::Info)?;
+        Ok(())
     }
 
-    fn select_previous_search_result(&self) {
+    fn select_previous_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             search.selected_result = search.selected_result.saturating_sub(1);
         }
+        self.task_manager.execute(CommandType::Info)?;
+        Ok(())
     }
 
-    fn select_next_search_result(&self) {
+    fn select_next_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             if search.results.len() == 0 {
-                return;
+                return Ok(());
             }
             search.selected_result =
                 search.selected_result.saturating_add(1) % search.results.len();
         }
+        self.task_manager.execute(CommandType::Info)?;
+        Ok(())
     }
 }

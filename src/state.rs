@@ -53,6 +53,7 @@ pub struct SearchState {
     pub query: String,
     pub results: SearchResults,
     pub selected_result: usize,
+    pub selected_result_info: String,
     pub source: SearchSource,
 }
 
@@ -88,6 +89,7 @@ impl Default for SearchState {
             query: String::default(),
             results: SearchResults::default(),
             selected_result: usize::default(),
+            selected_result_info: String::default(),
             source: SearchSource::Local,
         }
     }
