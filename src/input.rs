@@ -1,50 +1,63 @@
-use std::{
-    sync::{Arc, mpsc::Sender},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
-use color_eyre::eyre::bail;
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
+use tracing::info;
 
 use crate::{
+    commands::CommandType,
     state::{InputMode, Pane, SearchSource, State},
-    worker::WorkerEvent,
-    // trace_dbg,
+    task_manager::TaskManager, // trace_dbg,
 };
 
 pub struct InputHandler {
-    tx_worker: Sender<WorkerEvent>,
+    task_manager: TaskManager,
     state: Arc<State>,
+    update: bool,
 }
 
 impl InputHandler {
-    pub fn new(state: Arc<State>, tx_worker: Sender<WorkerEvent>) -> Self {
-        Self { tx_worker, state }
+    pub fn new(state: Arc<State>, task_manager: TaskManager) -> Self {
+        Self {
+            task_manager,
+            state,
+            update: false,
+        }
     }
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> color_eyre::Result<()> {
         loop {
-            self.capture_input();
+            self.capture_input()?;
             if let Ok(should_quit) = self.state.should_quit.try_lock() {
                 if *should_quit {
                     break;
                 }
             }
         }
+        Ok(())
     }
-    fn capture_input(&self) {
-        if event::poll(Duration::from_millis(10)).unwrap() {
+    fn capture_input(&mut self) -> color_eyre::Result<()> {
+        if event::poll(Duration::from_millis(300)).unwrap() {
+            self.update = true;
             match event::read().unwrap() {
                 event::Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                    self.handle_key_press(key_event);
+                    self.handle_key_press(key_event)?;
                 }
                 _ => {}
-            };
+            }
         } else {
-            self.tx_worker.send(WorkerEvent::UpdateSearch).unwrap();
+            if self.update == false {
+                return Ok(());
+            };
+            self.update = false;
+            let current_pane = self.state.current_pane();
+            if let Pane::SearchInput = *current_pane {
+                drop(current_pane);
+                self.task_manager.execute(CommandType::Search)?;
+            }
         }
+        Ok(())
     }
 
-    fn handle_key_press(&self, key_event: event::KeyEvent) {
+    fn handle_key_press(&mut self, key_event: event::KeyEvent) -> color_eyre::Result<()> {
         let mut current_pane = self.state.current_pane.lock().unwrap();
         let mut input_mode = self.state.input_mode.lock().unwrap();
 
@@ -60,14 +73,14 @@ impl InputHandler {
                     KeyCode::Char('q') => self.quit(),
                     KeyCode::Char('i') => *input_mode = InputMode::Insert,
                     KeyCode::Char('l') => {
-                        let mut search_source = self.state.search.source.lock().unwrap();
-                        *search_source = SearchSource::Local;
-                        self.tx_worker.send(WorkerEvent::UpdateSearch).unwrap();
+                        let mut search = self.state.search.lock().unwrap();
+                        search.source = SearchSource::Local;
+                        self.task_manager.execute(CommandType::Search)?;
                     }
                     KeyCode::Char('r') => {
-                        let mut search_source = self.state.search.source.lock().unwrap();
-                        *search_source = SearchSource::Remote;
-                        self.tx_worker.send(WorkerEvent::UpdateSearch).unwrap();
+                        let mut search = self.state.search.lock().unwrap();
+                        search.source = SearchSource::Remote;
+                        self.task_manager.execute(CommandType::Search)?;
                     }
                     _ => {}
                 },
@@ -92,6 +105,7 @@ impl InputHandler {
             },
             _ => {}
         }
+        Ok(())
     }
 
     fn quit(&self) {
@@ -114,36 +128,38 @@ impl InputHandler {
     // }
 
     fn append_search_query(&self, ch: char) {
-        if let Ok(mut query) = self.state.search.query.lock() {
-            query.push(ch);
+        if let Ok(mut search) = self.state.search.lock() {
+            search.query.push(ch);
         }
         self.reset_selected_search_result();
     }
 
     fn pop_search_query(&self) {
-        if let Ok(mut query) = self.state.search.query.lock() {
-            query.pop();
+        if let Ok(mut search) = self.state.search.lock() {
+            search.query.pop();
         }
         self.reset_selected_search_result();
     }
 
     fn reset_selected_search_result(&self) {
-        if let Ok(mut selected_search_result) = self.state.search.selected_result.lock() {
-            *selected_search_result = 0;
+        if let Ok(mut search) = self.state.search.lock() {
+            search.selected_result = 0;
         }
     }
 
     fn select_previous_search_result(&self) {
-        if let Ok(mut selected_search_result) = self.state.search.selected_result.lock() {
-            *selected_search_result = selected_search_result.saturating_sub(1);
+        if let Ok(mut search) = self.state.search.lock() {
+            search.selected_result = search.selected_result.saturating_sub(1);
         }
     }
 
     fn select_next_search_result(&self) {
-        if let Ok(mut selected_search_result) = self.state.search.selected_result.lock() {
-            if let Ok(results) = self.state.search.results.lock() {
-                *selected_search_result = selected_search_result.saturating_add(1) % results.len();
+        if let Ok(mut search) = self.state.search.lock() {
+            if search.results.len() == 0 {
+                return;
             }
+            search.selected_result =
+                search.selected_result.saturating_add(1) % search.results.len();
         }
     }
 }
