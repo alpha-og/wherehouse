@@ -1,4 +1,4 @@
-use std::{process::Command, sync::Arc};
+use std::sync::Arc;
 
 use ratatui::{
     layout::Alignment,
@@ -18,10 +18,8 @@ impl Widget for InfoPane {
         Self: Sized,
     {
         let block_style = match *self.state.current_pane() {
-            Pane::Info => Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-            _ => Style::default(),
+            Pane::Info => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            _ => Style::default().fg(Color::LightBlue),
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -29,7 +27,7 @@ impl Widget for InfoPane {
             .title_alignment(Alignment::Left)
             .style(block_style);
         let search = self.state.search.lock().unwrap();
-        let info_style = Style::default();
+        let info_style = Style::default().fg(Color::White);
         let info = Paragraph::new(search.selected_result_info.clone())
             .left_aligned()
             .block(block)

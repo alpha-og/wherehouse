@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ratatui::{
     layout::Alignment::Left,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     widgets::{Block, BorderType::Rounded, Paragraph, Widget},
 };
 
@@ -18,10 +18,8 @@ impl Widget for SearchInputPane {
         Self: Sized,
     {
         let block_style = match *self.state.current_pane() {
-            Pane::SearchInput => Style::default()
-                .fg(ratatui::style::Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-            _ => Style::default(),
+            Pane::SearchInput => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            _ => Style::default().fg(Color::LightBlue),
         };
         let block = Block::bordered()
             .border_type(Rounded)
@@ -29,7 +27,7 @@ impl Widget for SearchInputPane {
             .title_alignment(Left)
             .style(block_style);
 
-        let query_style = Style::default();
+        let query_style = Style::default().fg(Color::White);
         let search = self.state.search.lock().unwrap();
         let query = Paragraph::new(search.query.clone())
             .left_aligned()

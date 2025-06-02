@@ -18,10 +18,8 @@ impl Widget for SearchResultsPane {
         Self: Sized,
     {
         let block_style = match *self.state.current_pane() {
-            Pane::SearchResults => Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-            _ => Style::default(),
+            Pane::SearchResults => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            _ => Style::default().fg(Color::LightBlue),
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -38,10 +36,10 @@ impl Widget for SearchResultsPane {
                         .add_modifier(Modifier::BOLD),
                 )
             } else {
-                ListItem::new(item.display_text.clone()).style(Style::default())
+                ListItem::new(item.display_text.clone()).style(Style::default().fg(Color::White))
             }
         });
-        let search_results_style = Style::default();
+        let search_results_style = Style::default().fg(Color::White);
         let search_results = List::new(search_results)
             .block(block)
             .style(search_results_style);
