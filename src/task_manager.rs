@@ -75,6 +75,22 @@ impl TaskManager {
                     worker.stop()?;
                 }
             }
+            CommandType::Healthcheck => {
+                let state = self.state.clone();
+                let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
+                let worker = Worker::new(tx_task, move || {
+                    let output = commands::check_health(rx_task);
+                    let mut healthcheck_results = state.healthcheck_results.lock().unwrap();
+                    if let Some(result) = output {
+                        *healthcheck_results = result;
+                    } else {
+                        *healthcheck_results = String::default();
+                    }
+                });
+                if let Some(worker) = self.pool.insert(CommandType::Healthcheck, worker) {
+                    worker.stop()?;
+                }
+            }
             _ => {}
         };
         Ok(())

@@ -24,6 +24,7 @@ impl InputHandler {
         }
     }
     pub fn run(&mut self) -> color_eyre::Result<()> {
+        self.task_manager.execute(CommandType::Healthcheck)?;
         loop {
             self.capture_input()?;
             if let Ok(should_quit) = self.state.should_quit.try_lock() {

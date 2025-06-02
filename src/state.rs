@@ -16,6 +16,7 @@ pub enum Pane {
     SearchInput,
     SearchResults,
     Info,
+    Healthcheck,
 }
 
 impl Display for InputMode {
@@ -70,6 +71,7 @@ pub struct State {
     pub search: Arc<Mutex<SearchState>>,
     pub should_quit: Arc<Mutex<bool>>,
     pub config: Arc<Mutex<Config>>,
+    pub healthcheck_results: Arc<Mutex<String>>,
 }
 
 impl Default for Config {
@@ -103,6 +105,7 @@ impl State {
             search: Arc::new(Mutex::new(SearchState::default())),
             should_quit: Arc::new(Mutex::new(false)),
             config: Arc::new(Mutex::new(Config::default())),
+            healthcheck_results: Arc::new(Mutex::new(String::default())),
         }
     }
     pub fn current_pane(&self) -> MutexGuard<'_, Pane> {

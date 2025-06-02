@@ -3,9 +3,10 @@ use std::sync::Arc;
 use ratatui::layout::{Constraint, Layout};
 
 use crate::{
+    main,
     state::State,
     widget::{
-        info_pane::InfoPane, search_input_pane::SearchInputPane,
+        healthcheck_pane::HealthcheckPane, info_pane::InfoPane, search_input_pane::SearchInputPane,
         search_results_pane::SearchResultsPane, status_bar::StatusBar,
     },
 };
@@ -80,8 +81,15 @@ impl Tui {
         let search_results_pane = SearchResultsPane::new(self.state.clone());
         frame.render_widget(search_results_pane, search_layout[1]);
 
+        let secondary_layout =
+            Layout::vertical(vec![Constraint::Percentage(60), Constraint::Fill(1)])
+                .split(main_layout[1]);
+
         let info_pane = InfoPane::new(self.state.clone());
-        frame.render_widget(info_pane, main_layout[1]);
+        frame.render_widget(info_pane, secondary_layout[0]);
+
+        let healthcheck_pane = HealthcheckPane::new(self.state.clone());
+        frame.render_widget(healthcheck_pane, secondary_layout[1]);
 
         let status_bar = StatusBar::new(self.state.clone());
         frame.render_widget(status_bar, layout[1]);
