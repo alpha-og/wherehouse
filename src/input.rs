@@ -116,19 +116,6 @@ impl InputHandler {
         Ok(())
     }
 
-    // fn switch_input_mode(&self, input_mode: InputMode) {
-    //     if let Ok(mut current_input_mode) = self.state.input_mode.lock() {
-    //         *current_input_mode = input_mode;
-    //         println!("switched");
-    //     }
-    // }
-    //
-    // fn switch_pane(&self, pane: Pane) {
-    //     if let Ok(mut current_pane) = self.state.current_pane.lock() {
-    //         *current_pane = pane;
-    //     }
-    // }
-
     fn append_search_query(&mut self, ch: char) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
             search.query.push(ch);
