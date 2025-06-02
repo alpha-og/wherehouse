@@ -1,15 +1,15 @@
+use std::sync::Arc;
+
 use ratatui::{
     layout::Alignment,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, List, ListItem, Widget},
 };
 
-use crate::state::SearchResults;
+use crate::state::{Pane, State};
 
 pub struct SearchResultsPane {
-    results: SearchResults,
-    selected: usize,
-    active: bool,
+    state: Arc<State>,
 }
 
 impl Widget for SearchResultsPane {
@@ -17,20 +17,20 @@ impl Widget for SearchResultsPane {
     where
         Self: Sized,
     {
-        let block_style = if self.active {
-            Style::default()
+        let block_style = match *self.state.current_pane() {
+            Pane::SearchResults => Style::default()
                 .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default(),
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .title("2")
             .title_alignment(Alignment::Left)
             .style(block_style);
-        let search_results = self.results.iter().enumerate().map(|(i, item)| {
-            if i == self.selected {
+        let search = self.state.search.lock().unwrap();
+        let search_results = search.results.iter().enumerate().map(|(i, item)| {
+            if i == search.selected_result {
                 ListItem::new(item.display_text.clone()).style(
                     Style::default()
                         .bg(Color::White)
@@ -49,24 +49,8 @@ impl Widget for SearchResultsPane {
     }
 }
 
-impl Default for SearchResultsPane {
-    fn default() -> Self {
-        Self {
-            results: SearchResults::default(),
-            selected: usize::default(),
-            active: bool::default(),
-        }
-    }
-}
-
 impl SearchResultsPane {
-    pub fn results(&mut self, results: SearchResults) {
-        self.results = results;
-    }
-    pub fn select(&mut self, selected_result: usize) {
-        self.selected = selected_result;
-    }
-    pub fn active(&mut self) {
-        self.active = true;
+    pub fn new(state: Arc<State>) -> Self {
+        Self { state }
     }
 }

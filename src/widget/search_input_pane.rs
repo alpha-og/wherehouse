@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use ratatui::{
     layout::Alignment::Left,
     style::{Modifier, Style},
     widgets::{Block, BorderType::Rounded, Paragraph, Widget},
 };
 
+use crate::state::{Pane, State};
+
 pub struct SearchInputPane {
-    query: String,
-    active: bool,
+    state: Arc<State>,
 }
 
 impl Widget for SearchInputPane {
@@ -14,12 +17,11 @@ impl Widget for SearchInputPane {
     where
         Self: Sized,
     {
-        let block_style = if self.active {
-            Style::default()
+        let block_style = match *self.state.current_pane() {
+            Pane::SearchInput => Style::default()
                 .fg(ratatui::style::Color::Cyan)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default(),
         };
         let block = Block::bordered()
             .border_type(Rounded)
@@ -28,7 +30,8 @@ impl Widget for SearchInputPane {
             .style(block_style);
 
         let query_style = Style::default();
-        let query = Paragraph::new(self.query)
+        let search = self.state.search.lock().unwrap();
+        let query = Paragraph::new(search.query.clone())
             .left_aligned()
             .block(block)
             .style(query_style);
@@ -36,20 +39,8 @@ impl Widget for SearchInputPane {
     }
 }
 
-impl Default for SearchInputPane {
-    fn default() -> Self {
-        Self {
-            query: String::default(),
-            active: false,
-        }
-    }
-}
-
 impl SearchInputPane {
-    pub fn query(&mut self, query: String) {
-        self.query = query;
-    }
-    pub fn active(&mut self) {
-        self.active = true;
+    pub fn new(state: Arc<State>) -> Self {
+        Self { state }
     }
 }
