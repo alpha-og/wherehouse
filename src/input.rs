@@ -63,10 +63,12 @@ impl InputHandler {
         let mut current_pane = state.current_pane();
         let mut input_mode = state.input_mode.lock().unwrap();
 
-        match key_event.code {
-            KeyCode::Char('1') => *current_pane = Pane::SearchInput,
-            KeyCode::Char('2') => *current_pane = Pane::SearchResults,
-            _ => {}
+        if let InputMode::Normal = *input_mode {
+            match key_event.code {
+                KeyCode::Char('1') => *current_pane = Pane::SearchInput,
+                KeyCode::Char('2') => *current_pane = Pane::SearchResults,
+                _ => {}
+            }
         }
 
         match *current_pane {
