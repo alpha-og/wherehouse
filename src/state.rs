@@ -1,7 +1,9 @@
 use std::{
     fmt::Display,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
+
+use crate::commands::PackageManager;
 
 #[derive(Clone, Copy)]
 pub enum InputMode {
@@ -9,14 +11,11 @@ pub enum InputMode {
     Insert,
 }
 
-pub enum PackageManager {
-    Homebrew,
-}
-
 #[derive(Clone)]
 pub enum Pane {
     SearchInput,
     SearchResults,
+    Info,
 }
 
 impl Display for InputMode {
@@ -24,14 +23,6 @@ impl Display for InputMode {
         match self {
             Self::Normal => write!(f, "NORMAL"),
             Self::Insert => write!(f, "INSERT"),
-        }
-    }
-}
-
-impl Display for PackageManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Homebrew => write!(f, "Homebrew"),
         }
     }
 }
@@ -50,6 +41,7 @@ pub struct SearchResult {
     pub display_text: String,
 }
 
+#[derive(Copy, Clone)]
 pub enum SearchSource {
     Remote,
     Local,
@@ -58,10 +50,10 @@ pub enum SearchSource {
 pub type SearchResults = Vec<SearchResult>;
 
 pub struct SearchState {
-    pub query: Arc<Mutex<String>>,
-    pub results: Arc<Mutex<SearchResults>>,
-    pub selected_result: Arc<Mutex<usize>>,
-    pub source: Arc<Mutex<SearchSource>>,
+    pub query: String,
+    pub results: SearchResults,
+    pub selected_result: usize,
+    pub source: SearchSource,
 }
 
 pub struct Config {
@@ -74,7 +66,7 @@ pub struct Config {
 pub struct State {
     pub current_pane: Arc<Mutex<Pane>>,
     pub input_mode: Arc<Mutex<InputMode>>,
-    pub search: SearchState,
+    pub search: Arc<Mutex<SearchState>>,
     pub should_quit: Arc<Mutex<bool>>,
     pub config: Arc<Mutex<Config>>,
 }
@@ -93,10 +85,10 @@ impl Default for Config {
 impl Default for SearchState {
     fn default() -> Self {
         Self {
-            query: Arc::new(Mutex::new(String::default())),
-            results: Arc::new(Mutex::new(SearchResults::default())),
-            selected_result: Arc::new(Mutex::new(usize::default())),
-            source: Arc::new(Mutex::new(SearchSource::Local)),
+            query: String::default(),
+            results: SearchResults::default(),
+            selected_result: usize::default(),
+            source: SearchSource::Local,
         }
     }
 }
@@ -106,9 +98,12 @@ impl State {
         Self {
             current_pane: Arc::new(Mutex::new(Pane::SearchInput)),
             input_mode: Arc::new(Mutex::new(InputMode::Insert)),
-            search: SearchState::default(),
+            search: Arc::new(Mutex::new(SearchState::default())),
             should_quit: Arc::new(Mutex::new(false)),
             config: Arc::new(Mutex::new(Config::default())),
         }
+    }
+    pub fn current_pane(&self) -> MutexGuard<'_, Pane> {
+        self.current_pane.lock().unwrap()
     }
 }
