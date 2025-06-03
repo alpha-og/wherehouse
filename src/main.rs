@@ -1,3 +1,4 @@
+use commands::CommandType;
 use input::InputHandler;
 use logging::initialize_logging;
 use state::State;
@@ -18,7 +19,8 @@ fn main() -> color_eyre::Result<()> {
     initialize_logging()?;
     info!("initialized logging");
     let state = Arc::new(State::new());
-    let task_manager = TaskManager::new(state.clone());
+    let mut task_manager = TaskManager::new(state.clone());
+    task_manager.execute(CommandType::Config, false)?;
 
     let mut input_handler = InputHandler::new(state.clone(), task_manager);
     let _input_thread = thread::spawn(move || input_handler.run());

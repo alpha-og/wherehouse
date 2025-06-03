@@ -3,7 +3,9 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use crate::commands::PackageManager;
+use ratatui::widgets::ListState;
+
+use crate::commands::{CommandType, PackageManager};
 
 #[derive(Clone, Copy)]
 pub enum InputMode {
@@ -15,8 +17,10 @@ pub enum InputMode {
 pub enum Pane {
     SearchInput,
     SearchResults,
+    Status,
     Info,
     Healthcheck,
+    Context,
 }
 
 impl Display for InputMode {
@@ -55,12 +59,14 @@ pub struct SearchState {
     pub results: SearchResults,
     pub selected_result: usize,
     pub selected_result_info: String,
+    pub list_state: ListState,
     pub source: SearchSource,
 }
 
 pub struct Config {
     pub package_manager: PackageManager,
     pub package_manager_version: String,
+    pub system_config: String,
     pub app_version: String,
     pub app_name: String,
 }
@@ -72,6 +78,7 @@ pub struct State {
     pub should_quit: Arc<Mutex<bool>>,
     pub config: Arc<Mutex<Config>>,
     pub healthcheck_results: Arc<Mutex<String>>,
+    pub context_content: Arc<Mutex<String>>,
 }
 
 impl Default for Config {
@@ -81,6 +88,7 @@ impl Default for Config {
             package_manager_version: String::default(),
             app_version: String::default(),
             app_name: String::from("WhereHouse"),
+            system_config: String::default(),
         }
     }
 }
@@ -92,6 +100,7 @@ impl Default for SearchState {
             results: SearchResults::default(),
             selected_result: usize::default(),
             selected_result_info: String::default(),
+            list_state: ListState::default(),
             source: SearchSource::Local,
         }
     }
@@ -106,9 +115,14 @@ impl State {
             should_quit: Arc::new(Mutex::new(false)),
             config: Arc::new(Mutex::new(Config::default())),
             healthcheck_results: Arc::new(Mutex::new(String::default())),
+            context_content: Arc::new(Mutex::new(String::default())),
         }
     }
     pub fn current_pane(&self) -> MutexGuard<'_, Pane> {
         self.current_pane.lock().unwrap()
+    }
+    pub fn update_context(&self, content: String) {
+        let mut context_content = self.context_content.lock().unwrap();
+        *context_content = content;
     }
 }

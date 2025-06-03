@@ -3,10 +3,9 @@ use std::sync::Arc;
 use ratatui::layout::{Constraint, Layout};
 
 use crate::{
-    main,
     state::State,
     widget::{
-        healthcheck_pane::HealthcheckPane, info_pane::InfoPane, search_input_pane::SearchInputPane,
+        context_pane::ContextPane, info_pane::InfoPane, search_input_pane::SearchInputPane,
         search_results_pane::SearchResultsPane, status_bar::StatusBar,
     },
 };
@@ -72,24 +71,25 @@ impl Tui {
         let main_layout = Layout::horizontal(vec![Constraint::Percentage(40), Constraint::Fill(1)])
             .split(layout[0]);
 
-        let search_layout = Layout::vertical(vec![Constraint::Length(3), Constraint::Fill(1)])
-            .split(main_layout[0]);
-
-        let search_input_pane = SearchInputPane::new(self.state.clone());
-        frame.render_widget(search_input_pane, search_layout[0]);
-
-        let search_results_pane = SearchResultsPane::new(self.state.clone());
-        frame.render_widget(search_results_pane, search_layout[1]);
-
-        let secondary_layout =
-            Layout::vertical(vec![Constraint::Percentage(60), Constraint::Fill(1)])
-                .split(main_layout[1]);
+        let sidebar_layout = Layout::vertical(vec![
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Fill(1),
+        ])
+        .split(main_layout[0]);
 
         let info_pane = InfoPane::new(self.state.clone());
-        frame.render_widget(info_pane, secondary_layout[0]);
+        frame.render_widget(info_pane, sidebar_layout[0]);
 
-        let healthcheck_pane = HealthcheckPane::new(self.state.clone());
-        frame.render_widget(healthcheck_pane, secondary_layout[1]);
+        let search_input_pane = SearchInputPane::new(self.state.clone());
+        frame.render_widget(search_input_pane, sidebar_layout[1]);
+
+        let search_results_pane = SearchResultsPane::new(self.state.clone());
+        let mut list_state = self.state.search.lock().unwrap().list_state.clone();
+        frame.render_stateful_widget(search_results_pane, sidebar_layout[2], &mut list_state);
+
+        let info_pane = ContextPane::new(self.state.clone());
+        frame.render_widget(info_pane, main_layout[1]);
 
         let status_bar = StatusBar::new(self.state.clone());
         frame.render_widget(status_bar, layout[1]);

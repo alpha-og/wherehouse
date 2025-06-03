@@ -30,69 +30,79 @@ impl TaskManager {
         }
     }
 
-    pub fn execute(&mut self, command_type: CommandType) -> color_eyre::Result<()> {
-        match command_type {
-            CommandType::Search => {
-                let state = self.state.clone();
-                let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
-                let worker = Worker::new(tx_task, move || {
-                    let search = state.search.lock().unwrap();
-                    let query = search.query.clone();
-                    let source = search.source;
-                    drop(search);
-                    let search_results = commands::search(rx_task, query, source);
-                    let mut search = state.search.lock().unwrap();
+    pub fn execute(
+        &mut self,
+        command_type: CommandType,
+        update_context: bool,
+    ) -> color_eyre::Result<()> {
+        let state = self.state.clone();
+        let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
 
-                    if let Some(results) = search_results {
-                        search.results = results;
-                    } else {
-                        search.results = Vec::default();
-                    }
-                });
-                if let Some(worker) = self.pool.insert(CommandType::Search, worker) {
-                    worker.stop()?;
+        let worker = match command_type {
+            CommandType::Search => Worker::new(tx_task, move || {
+                let search = state.search.lock().unwrap();
+                let query = search.query.clone();
+                let source = search.source;
+                drop(search);
+                let result = commands::search(rx_task, query, source);
+                let mut search = state.search.lock().unwrap();
+
+                let output = match result {
+                    Some(results) => results,
+                    None => Vec::default(),
+                };
+                search.results = output;
+            }),
+            CommandType::Info => Worker::new(tx_task, move || {
+                let search = state.search.lock().unwrap();
+                let package_name = match search.results.get(search.selected_result) {
+                    Some(result) => result.display_text.clone(),
+                    None => String::default(),
+                };
+                drop(search);
+                let result = commands::info(rx_task, package_name);
+                let mut search = state.search.lock().unwrap();
+                let output = match result {
+                    Some(output) => output,
+                    None => String::default(),
+                };
+                if update_context {
+                    state.update_context(output.clone());
                 }
-            }
-            CommandType::Info => {
-                let state = self.state.clone();
-                let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
-                let worker = Worker::new(tx_task, move || {
-                    let search = state.search.lock().unwrap();
-                    let package_name = match search.results.get(search.selected_result) {
-                        Some(result) => result.display_text.clone(),
-                        None => String::default(),
-                    };
-                    drop(search);
-                    let package_info = commands::info(rx_task, package_name);
-                    let mut search = state.search.lock().unwrap();
-                    if let Some(result) = package_info {
-                        search.selected_result_info = result;
-                    } else {
-                        search.selected_result_info = String::default();
-                    }
-                });
-                if let Some(worker) = self.pool.insert(CommandType::Info, worker) {
-                    worker.stop()?;
+
+                search.selected_result_info = output;
+            }),
+            CommandType::Healthcheck => Worker::new(tx_task, move || {
+                let result = commands::check_health(rx_task);
+                let mut healthcheck_results = state.healthcheck_results.lock().unwrap();
+                let output = match result {
+                    Some(output) => output,
+                    None => String::default(),
+                };
+                if update_context {
+                    state.update_context(output.clone());
                 }
-            }
-            CommandType::Healthcheck => {
-                let state = self.state.clone();
-                let (tx_task, rx_task) = mpsc::channel::<TaskEvent>();
-                let worker = Worker::new(tx_task, move || {
-                    let output = commands::check_health(rx_task);
-                    let mut healthcheck_results = state.healthcheck_results.lock().unwrap();
-                    if let Some(result) = output {
-                        *healthcheck_results = result;
-                    } else {
-                        *healthcheck_results = String::default();
-                    }
-                });
-                if let Some(worker) = self.pool.insert(CommandType::Healthcheck, worker) {
-                    worker.stop()?;
+
+                *healthcheck_results = output;
+            }),
+            CommandType::Config => Worker::new(tx_task, move || {
+                let result = commands::config(rx_task);
+                let mut config = state.config.lock().unwrap();
+                let output = match result {
+                    Some(output) => output,
+                    None => String::default(),
+                };
+                if update_context {
+                    state.update_context(output.clone());
                 }
-            }
-            _ => {}
+                config.system_config = output;
+            }),
+            _ => Worker::new(tx_task, || {}),
         };
+        if let Some(worker) = self.pool.insert(command_type, worker) {
+            worker.stop()?;
+        }
+
         Ok(())
     }
 }

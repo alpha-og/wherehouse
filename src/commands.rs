@@ -20,7 +20,9 @@ use crate::{
 #[derive(PartialEq, Eq, Hash)]
 pub enum CommandType {
     Search,
+    Config,
     Info,
+    GeneralInfo,
     Healthcheck,
     Install,
     Uninstall,
@@ -165,6 +167,51 @@ pub fn check_health(rx_task: Receiver<TaskEvent>) -> Option<String> {
     let stdout_handle = thread::spawn(move || {
         let mut output = String::new();
         let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            if let Ok(content) = line {
+                output.push_str(&content);
+                output.push('\n');
+            }
+        }
+        tx_output.send(output).unwrap();
+    });
+    loop {
+        if let Ok(Some(_)) = child.try_wait() {
+            let results = match rx_output.recv() {
+                Ok(output) => output,
+                _ => String::default(),
+            };
+            return Some(results);
+        }
+        if let Ok(task_event) = rx_task.try_recv() {
+            match task_event {
+                TaskEvent::Stop => {
+                    child.kill().unwrap();
+                    stdout_handle.join().expect("Failed to join stdout thread");
+                    break;
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn config(rx_task: Receiver<TaskEvent>) -> Option<String> {
+    let mut child = match Command::new("brew")
+        .arg("config")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return None,
+    };
+
+    let stdout = child.stdout.take().expect("no stdout");
+    let (tx_output, rx_output) = channel::<String>();
+    let stdout_handle = thread::spawn(move || {
+        let mut output = String::new();
+        let reader = BufReader::new(stdout);
         for line in reader.lines() {
             if let Ok(content) = line {
                 output.push_str(&content);
