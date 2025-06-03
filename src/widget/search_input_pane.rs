@@ -23,7 +23,7 @@ impl Widget for SearchInputPane {
         };
         let block = Block::bordered()
             .border_type(Rounded)
-            .title("1")
+            .title("2")
             .title_alignment(Left)
             .style(block_style);
 

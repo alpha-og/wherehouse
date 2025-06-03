@@ -23,12 +23,12 @@ impl Widget for InfoPane {
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            // .title("4")
+            .title("1")
             .title_alignment(Alignment::Left)
             .style(block_style);
-        let search = self.state.search.lock().unwrap();
+
         let info_style = Style::default().fg(Color::White);
-        let info = Paragraph::new(search.selected_result_info.clone())
+        let info = Paragraph::new("Homebrew")
             .left_aligned()
             .block(block)
             .style(info_style);
