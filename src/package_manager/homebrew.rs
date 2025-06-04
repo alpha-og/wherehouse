@@ -2,10 +2,12 @@ use super::{CommandResult, PackageManager, SpawnCommandResult, command, spawn_co
 
 pub struct Homebrew;
 
+const HOMEBREW_ALIAS: &'static str = "brew";
+
 impl Homebrew {
     /// Display homebrew version
     fn brew_version() -> CommandResult {
-        command(["--version"])
+        command(HOMEBREW_ALIAS, ["--version"])
     }
 
     /// Install specified packages (casks/ formulae)
@@ -24,7 +26,7 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        spawn_command(args)
+        spawn_command(HOMEBREW_ALIAS, args)
     }
 
     /// Uninstall specified packages (casks/ formulae)
@@ -43,37 +45,37 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        spawn_command(args)
+        spawn_command(HOMEBREW_ALIAS, args)
     }
 
     /// List installed packages (casks/ formulae)
     fn brew_list() -> CommandResult {
-        command(["list"])
+        command(HOMEBREW_ALIAS, ["list"])
     }
 
     /// Search homebrew core for specified pattern
     fn brew_search(pattern: &'static str) -> CommandResult {
-        command(["search", pattern])
+        command(HOMEBREW_ALIAS, ["search", pattern])
     }
 
     /// Uninstall formulae that were only installed as a dependency
     /// of another formula and are now no longer needed
     fn brew_autoremove(dry_run: Option<AutoremoveOption>) -> CommandResult {
         if let Some(arg) = dry_run {
-            command(["autoremove", arg.into()])
+            command(HOMEBREW_ALIAS, ["autoremove", arg.into()])
         } else {
-            command(["autoremove"])
+            command(HOMEBREW_ALIAS, ["autoremove"])
         }
     }
     /// List all locally installable casks including short names
     fn brew_casks() -> CommandResult {
-        command(["casks"])
+        command(HOMEBREW_ALIAS, ["casks"])
     }
 
     /// List all locally installable formulae including short
     /// names
     fn brew_formulae() -> CommandResult {
-        command(["formulae"])
+        command(HOMEBREW_ALIAS, ["formulae"])
     }
 
     /// Remove stale lock files and outdated downloads for all
@@ -97,7 +99,7 @@ impl Homebrew {
         if let Some(packages) = packages {
             args.extend(packages.into_iter());
         }
-        command(args)
+        command(HOMEBREW_ALIAS, args)
     }
 
     /// Control whether Homebrew automatically links external
@@ -107,13 +109,13 @@ impl Homebrew {
         if let Some(arg) = subcommand {
             args.push(arg.into());
         }
-        command(args)
+        command(HOMEBREW_ALIAS, args)
     }
 
     /// Show Homebrew and system configuration info useful
     /// for debugging
     fn brew_config() -> CommandResult {
-        command(["config"])
+        command(HOMEBREW_ALIAS, ["config"])
     }
     /// Display formula’s name and one-line description
     fn brew_desc<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
@@ -129,7 +131,7 @@ impl Homebrew {
             args.extend(query.into_iter());
         }
 
-        spawn_command(args)
+        spawn_command(HOMEBREW_ALIAS, args)
     }
 
     /// Check your system for potential problems
@@ -146,7 +148,7 @@ impl Homebrew {
             );
         }
 
-        spawn_command(args)
+        spawn_command(HOMEBREW_ALIAS, args)
     }
 
     /// Open a formula or cask’s homepage in a browser, or
@@ -165,7 +167,7 @@ impl Homebrew {
             args.extend(query);
         }
 
-        command(args)
+        command(HOMEBREW_ALIAS, args)
     }
 
     /// Display brief statistics for your Homebrew installation
@@ -187,7 +189,7 @@ impl Homebrew {
             args.extend(query);
         }
 
-        spawn_command(args)
+        spawn_command(HOMEBREW_ALIAS, args)
     }
 }
 

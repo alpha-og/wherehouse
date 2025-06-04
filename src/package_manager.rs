@@ -9,12 +9,12 @@ pub type SpawnCommandResult = Result<std::process::Child, std::io::Error>;
 pub type CommandResult = std::io::Result<std::process::Output>;
 
 /// spawn a non-blocking command returning the Child
-pub fn spawn_command<I, S>(args: I) -> SpawnCommandResult
+pub fn spawn_command<I, S>(alias: &'static str, args: I) -> SpawnCommandResult
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    Command::new("brew")
+    Command::new(alias)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -22,12 +22,12 @@ where
 }
 
 /// create a blocking command and run until completion returning the output wrapped in a Result
-pub fn command<I, S>(args: I) -> CommandResult
+pub fn command<I, S>(alias: &'static str, args: I) -> CommandResult
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    Command::new("brew").args(args).output()
+    Command::new(alias).args(args).output()
 }
 
 pub enum PackageLocality {
