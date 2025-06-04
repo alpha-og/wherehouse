@@ -1,40 +1,15 @@
-use std::{
-    ffi::OsStr,
-    process::{Child, Command, Stdio},
-};
-
-use super::{CommandResult, SpawnCommandResult};
+use super::{CommandResult, PackageManager, SpawnCommandResult, command, spawn_command};
 
 pub struct Homebrew;
 
 impl Homebrew {
-    // spawn a non-blocking command
-    fn spawn_command<I, S>(args: I) -> SpawnCommandResult
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        Command::new("brew")
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+    /// Display homebrew version
+    fn brew_version() -> CommandResult {
+        command(["--version"])
     }
 
-    // create a blocking command and run until completion
-    fn command<I, S>(args: I) -> CommandResult
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        Command::new("brew").args(args).output()
-    }
-
-    pub fn version() -> CommandResult {
-        Self::command(["--version"])
-    }
-
-    pub fn install<I, J>(options: Option<I>, package_list: J) -> SpawnCommandResult
+    /// Install specified packages (casks/ formulae)
+    fn brew_install<I, J>(options: Option<I>, package_list: J) -> SpawnCommandResult
     where
         I: IntoIterator<Item = InstallOption>,
         J: IntoIterator<Item = String>,
@@ -49,10 +24,11 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        Self::spawn_command(args)
+        spawn_command(args)
     }
 
-    pub fn uninstall<I, J>(options: Option<I>, package_list: J) -> SpawnCommandResult
+    /// Uninstall specified packages (casks/ formulae)
+    fn brew_uninstall<I, J>(options: Option<I>, package_list: J) -> SpawnCommandResult
     where
         I: IntoIterator<Item = UninstallOption>,
         J: IntoIterator<Item = String>,
@@ -67,34 +43,45 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        Self::spawn_command(args)
+        spawn_command(args)
     }
 
-    pub fn list() -> CommandResult {
-        Self::command(["list"])
+    /// List installed packages (casks/ formulae)
+    fn brew_list() -> CommandResult {
+        command(["list"])
     }
 
-    pub fn search(pattern: &'static str) -> CommandResult {
-        Self::command(["search", pattern])
+    /// Search homebrew core for specified pattern
+    fn brew_search(pattern: &'static str) -> CommandResult {
+        command(["search", pattern])
     }
 
-    pub fn autoremove(dry_run: Option<AutoremoveOption>) -> CommandResult {
+    /// Uninstall formulae that were only installed as a dependency
+    /// of another formula and are now no longer needed
+    fn brew_autoremove(dry_run: Option<AutoremoveOption>) -> CommandResult {
         if let Some(arg) = dry_run {
-            Self::command(["autoremove", arg])
+            command(["autoremove", arg.into()])
         } else {
-            Self::command(["autoremove"])
+            command(["autoremove"])
         }
     }
-
-    pub fn casks() -> CommandResult {
-        Self::command(["casks"])
+    /// List all locally installable casks including short names
+    fn brew_casks() -> CommandResult {
+        command(["casks"])
     }
 
-    pub fn formulae() -> CommandResult {
-        Self::command(["formulae"])
+    /// List all locally installable formulae including short
+    /// names
+    fn brew_formulae() -> CommandResult {
+        command(["formulae"])
     }
 
-    pub fn cleanup<I, J>(options: Option<I>, packages: Option<J>) -> CommandResult
+    /// Remove stale lock files and outdated downloads for all
+    /// formulae and casks, and remove old versions of installed
+    /// formulae. If arguments are specified, only do this for
+    /// the given formulae and casks. Removes all downloads
+    /// more than 120 days old.
+    fn brew_cleanup<I, J>(options: Option<I>, packages: Option<J>) -> CommandResult
     where
         I: IntoIterator<Item = CleanupOption>,
         J: IntoIterator<Item = String>,
@@ -110,22 +97,26 @@ impl Homebrew {
         if let Some(packages) = packages {
             args.extend(packages.into_iter());
         }
-        Self::command(args)
+        command(args)
     }
 
-    pub fn completions(subcommand: Option<CompletionsSubcommand>) -> CommandResult {
+    /// Control whether Homebrew automatically links external
+    /// tap shell completion files
+    fn brew_completions(subcommand: Option<CompletionsSubcommand>) -> CommandResult {
         let mut args = vec!["completions"];
         if let Some(arg) = subcommand {
             args.push(arg.into());
         }
-        Self::command(args)
+        command(args)
     }
 
-    pub fn config() -> CommandResult {
-        Self::command(["config"])
+    /// Show Homebrew and system configuration info useful
+    /// for debugging
+    fn brew_config() -> CommandResult {
+        command(["config"])
     }
-
-    pub fn desc<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
+    /// Display formula’s name and one-line description
+    fn brew_desc<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
     where
         I: IntoIterator<Item = DescOption>,
         J: IntoIterator<Item = String>,
@@ -138,10 +129,11 @@ impl Homebrew {
             args.extend(query.into_iter());
         }
 
-        Self::spawn_command(args)
+        spawn_command(args)
     }
 
-    pub fn doctor<I, J>(options: Option<I>) -> SpawnCommandResult
+    /// Check your system for potential problems
+    fn brew_doctor<I, J>(options: Option<I>) -> SpawnCommandResult
     where
         I: IntoIterator<Item = DoctorOption>,
     {
@@ -154,10 +146,12 @@ impl Homebrew {
             );
         }
 
-        Self::spawn_command(args)
+        spawn_command(args)
     }
 
-    pub fn home<I>(options: Option<HomeOption>, query: Option<I>) -> CommandResult
+    /// Open a formula or cask’s homepage in a browser, or
+    /// open Homebrew’s own homepage if no argument is provided
+    fn brew_home<I>(options: Option<HomeOption>, query: Option<I>) -> CommandResult
     where
         I: IntoIterator<Item = String>,
     {
@@ -171,10 +165,14 @@ impl Homebrew {
             args.extend(query);
         }
 
-        Self::command(args)
+        command(args)
     }
 
-    pub fn info<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
+    /// Display brief statistics for your Homebrew installation
+    ///
+    /// If a formula or cask is provided, show summary of
+    /// information about it
+    fn brew_info<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
     where
         I: IntoIterator<Item = InfoOption>,
         J: IntoIterator<Item = String>,
@@ -189,7 +187,7 @@ impl Homebrew {
             args.extend(query);
         }
 
-        Self::spawn_command(args)
+        spawn_command(args)
     }
 }
 
