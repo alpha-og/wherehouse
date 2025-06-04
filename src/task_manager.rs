@@ -1,4 +1,5 @@
 use tracing::info;
+use wherehouse::package_manager::{self, PackageManager, homebrew::Homebrew};
 
 use crate::{
     commands::{self, CommandType},
@@ -44,19 +45,19 @@ impl TaskManager {
                 let query = search.query.clone();
                 let source = search.source;
                 drop(search);
-                let result = commands::search(rx_task, query, source);
+                let result = Homebrew.filter_packages(source, query);
                 let mut search = state.search.lock().unwrap();
 
                 let output = match result {
-                    Some(results) => results,
-                    None => Vec::default(),
+                    Ok(results) => results,
+                    Err(_) => Vec::default(),
                 };
                 search.results = output;
             }),
             CommandType::Info => Worker::new(tx_task, move || {
                 let search = state.search.lock().unwrap();
                 let package_name = match search.results.get(search.selected_result) {
-                    Some(result) => result.display_text.clone(),
+                    Some(result) => result.clone(),
                     None => String::default(),
                 };
                 drop(search);

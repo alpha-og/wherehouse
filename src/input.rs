@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 use tracing::info;
+use wherehouse::package_manager::PackageLocality;
 
 use crate::{
     commands::CommandType,
@@ -99,12 +100,12 @@ impl InputHandler {
                     KeyCode::Char('i') => *input_mode = InputMode::Insert,
                     KeyCode::Char('l') => {
                         let mut search = self.state.search.lock().unwrap();
-                        search.source = SearchSource::Local;
+                        search.source = PackageLocality::Local;
                         self.task_manager.execute(CommandType::Search, true)?;
                     }
                     KeyCode::Char('r') => {
                         let mut search = self.state.search.lock().unwrap();
-                        search.source = SearchSource::Remote;
+                        search.source = PackageLocality::Remote;
                         self.task_manager.execute(CommandType::Search, true)?;
                     }
                     _ => {}

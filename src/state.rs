@@ -4,8 +4,9 @@ use std::{
 };
 
 use ratatui::widgets::ListState;
+use wherehouse::package_manager::PackageLocality;
 
-use crate::commands::{CommandType, PackageManager};
+use crate::commands::PackageManager;
 
 #[derive(Clone, Copy)]
 pub enum InputMode {
@@ -17,9 +18,7 @@ pub enum InputMode {
 pub enum Pane {
     SearchInput,
     SearchResults,
-    Status,
     Info,
-    Healthcheck,
     Context,
 }
 
@@ -41,18 +40,13 @@ impl Display for SearchSource {
     }
 }
 
-#[derive(Default, Clone)]
-pub struct SearchResult {
-    pub display_text: String,
-}
-
 #[derive(Copy, Clone)]
 pub enum SearchSource {
     Remote,
     Local,
 }
 
-pub type SearchResults = Vec<SearchResult>;
+pub type SearchResults = Vec<String>;
 
 pub struct SearchState {
     pub query: String,
@@ -60,7 +54,7 @@ pub struct SearchState {
     pub selected_result: usize,
     pub selected_result_info: String,
     pub list_state: ListState,
-    pub source: SearchSource,
+    pub source: PackageLocality,
 }
 
 pub struct Config {
@@ -101,7 +95,7 @@ impl Default for SearchState {
             selected_result: usize::default(),
             selected_result_info: String::default(),
             list_state: ListState::default(),
-            source: SearchSource::Local,
+            source: PackageLocality::Local,
         }
     }
 }

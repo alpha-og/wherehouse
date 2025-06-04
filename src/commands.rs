@@ -13,7 +13,7 @@ use std::{
 use tracing::info;
 
 use crate::{
-    state::{SearchResult, SearchSource},
+    state::{SearchResults, SearchSource},
     task_manager::TaskEvent,
 };
 
@@ -33,7 +33,7 @@ pub fn search(
     rx_task: Receiver<TaskEvent>,
     query: String,
     source: SearchSource,
-) -> Option<Vec<SearchResult>> {
+) -> Option<SearchResults> {
     if !query.is_empty() {
         let mut child = match source {
             SearchSource::Remote => {
@@ -77,9 +77,7 @@ pub fn search(
                         .split("\n")
                         .filter_map(|result| {
                             if !result.is_empty() {
-                                Some(SearchResult {
-                                    display_text: result.to_string(),
-                                })
+                                Some(result.to_string())
                             } else {
                                 None
                             }

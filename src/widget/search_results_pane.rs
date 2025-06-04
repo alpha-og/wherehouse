@@ -31,7 +31,7 @@ impl StatefulWidget for SearchResultsPane {
         let search_results = search
             .results
             .iter()
-            .map(|item| ListItem::new(item.display_text.clone()).style(search_results_style))
+            .map(|item| ListItem::new(item.clone()).style(search_results_style))
             .collect::<Vec<ListItem>>();
         let selected_style = Style::default()
             .bg(Color::White)
