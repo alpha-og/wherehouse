@@ -1,4 +1,6 @@
-use super::{CommandResult, PackageManager, SpawnCommandResult, command, spawn_command};
+use super::{
+    CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command, spawn_command,
+};
 
 pub struct Homebrew;
 
@@ -54,8 +56,8 @@ impl Homebrew {
     }
 
     /// Search homebrew core for specified pattern
-    fn brew_search(pattern: &'static str) -> CommandResult {
-        command(HOMEBREW_ALIAS, ["search", pattern])
+    fn brew_search(pattern: String) -> CommandResult {
+        command(HOMEBREW_ALIAS, ["search".to_string(), pattern])
     }
 
     /// Uninstall formulae that were only installed as a dependency
@@ -191,6 +193,39 @@ impl Homebrew {
 
         spawn_command(HOMEBREW_ALIAS, args)
     }
+}
+
+impl PackageManager for Homebrew {
+    fn filter_packages(
+        &self,
+        package_locality: super::PackageLocality,
+        pattern: String,
+    ) -> Result<Vec<String>, String> {
+        match package_locality {
+            PackageLocality::Local => match Self::brew_list() {
+                Ok(output) => Ok(String::from_utf8(output.stdout)
+                    .unwrap()
+                    .split("\n")
+                    .map(|item| item.to_string())
+                    .collect::<Vec<String>>()),
+                Err(e) => Err(format!("failed to execute command brew list: {e}")),
+            },
+            PackageLocality::Remote => match Self::brew_search(pattern) {
+                Ok(output) => Ok(String::from_utf8(output.stdout)
+                    .unwrap()
+                    .split("\n")
+                    .map(|item| item.to_string())
+                    .collect::<Vec<String>>()),
+                Err(e) => Err(format!("failed to execute command brew list: {e}")),
+            },
+        }
+    }
+    // fn check_health() -> Result<String, String> {}
+    // fn clean() -> Result<String, String> {}
+    // fn package_info(package_name: String) -> Result<String, String> {}
+    // fn install(package_name: String) -> Result<(), String> {}
+    // fn upgrade(package_name: String) -> Result<(), String> {}
+    // fn uninstall(package_name: String) -> Result<(), String> {}
 }
 
 pub enum AutoremoveOption {
