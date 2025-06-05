@@ -1,5 +1,8 @@
+use std::sync::mpsc::Receiver;
+
 use super::{
-    CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command, spawn_command,
+    CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
+    handle_spawned_command, spawn_command,
 };
 
 pub struct Homebrew;
@@ -27,6 +30,26 @@ impl Homebrew {
             );
         }
         args.extend(package_list);
+
+        spawn_command(HOMEBREW_ALIAS, args)
+    }
+
+    /// Upgrade installed packages
+    fn brew_upgrade<J>(package_list: Option<J>) -> SpawnCommandResult
+    where
+        J: IntoIterator<Item = String>,
+    {
+        let mut args = vec!["upgrade".to_string()];
+        // if let Some(options) = options {
+        //     args.extend(
+        //         options
+        //             .into_iter()
+        //             .map(|option: InstallOption| option.into()),
+        //     );
+        // }
+        if let Some(packages) = package_list {
+            args.extend(packages);
+        }
 
         spawn_command(HOMEBREW_ALIAS, args)
     }
@@ -137,7 +160,7 @@ impl Homebrew {
     }
 
     /// Check your system for potential problems
-    fn brew_doctor<I, J>(options: Option<I>) -> SpawnCommandResult
+    fn brew_doctor<I>(options: Option<I>) -> SpawnCommandResult
     where
         I: IntoIterator<Item = DoctorOption>,
     {
@@ -196,8 +219,12 @@ impl Homebrew {
 }
 
 impl PackageManager for Homebrew {
+    fn alias(&self) -> &'static str {
+        "brew"
+    }
     fn filter_packages(
         &self,
+        _rx: Receiver<bool>,
         package_locality: super::PackageLocality,
         pattern: String,
     ) -> Result<Vec<String>, String> {
@@ -220,12 +247,69 @@ impl PackageManager for Homebrew {
             },
         }
     }
-    // fn check_health() -> Result<String, String> {}
-    // fn clean() -> Result<String, String> {}
-    // fn package_info(package_name: String) -> Result<String, String> {}
-    // fn install(package_name: String) -> Result<(), String> {}
-    // fn upgrade(package_name: String) -> Result<(), String> {}
-    // fn uninstall(package_name: String) -> Result<(), String> {}
+
+    fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
+        let child = match Self::brew_desc(
+            Some([DescOption::Search, DescOption::EvalAll]),
+            Some([package_name]),
+        ) {
+            Ok(child) => child,
+            Err(e) => return Err(format!("{e}")),
+        };
+        match handle_spawned_command(rx, child) {
+            Some(output) => Ok(output.out.unwrap()),
+            None => Err("could not execute command".to_string()),
+        }
+    }
+    fn check_health(&self, rx: Receiver<bool>) -> Result<String, String> {
+        let child = match Self::brew_doctor::<Vec<DoctorOption>>(None) {
+            Ok(child) => child,
+            Err(e) => return Err(format!("{e}")),
+        };
+        match handle_spawned_command(rx, child) {
+            Some(output) => Ok(output.err.unwrap()),
+            None => Err("could not execute command".to_string()),
+        }
+    }
+    fn clean(&self, rx: Receiver<bool>) -> Result<String, String> {
+        match Self::brew_cleanup::<Vec<CleanupOption>, Vec<String>>(None, None) {
+            Ok(output) => Ok(String::from_utf8(output.stdout).unwrap()),
+            Err(e) => Err(format!("{e}")),
+        }
+    }
+    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+        let child = match Self::brew_install::<Vec<InstallOption>, _>(None, [package_name]) {
+            Ok(child) => child,
+            Err(e) => return Err(format!("{e}")),
+        };
+
+        match handle_spawned_command(rx, child) {
+            Some(_) => Ok(()),
+            None => Err("could not execute command".to_string()),
+        }
+    }
+    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+        let child = match Self::brew_upgrade(Some([package_name])) {
+            Ok(child) => child,
+            Err(e) => return Err(format!("{e}")),
+        };
+
+        match handle_spawned_command(rx, child) {
+            Some(_) => Ok(()),
+            None => Err("could not execute command".to_string()),
+        }
+    }
+    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+        let child = match Self::brew_uninstall::<Vec<UninstallOption>, _>(None, [package_name]) {
+            Ok(child) => child,
+            Err(e) => return Err(format!("{e}")),
+        };
+
+        match handle_spawned_command(rx, child) {
+            Some(_) => Ok(()),
+            None => Err("could not execute command".to_string()),
+        }
+    }
 }
 
 pub enum AutoremoveOption {
