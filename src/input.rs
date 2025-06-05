@@ -2,22 +2,21 @@ use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
 use tracing::info;
-use wherehouse::package_manager::PackageLocality;
+use wherehouse::package_manager::{Command, PackageLocality, PackageManager};
 
 use crate::{
-    commands::CommandType,
-    state::{InputMode, Pane, SearchSource, State},
+    state::{InputMode, Pane, State},
     task_manager::TaskManager, // trace_dbg,
 };
 
-pub struct InputHandler {
-    task_manager: TaskManager,
+pub struct InputHandler<T> {
+    task_manager: TaskManager<T>,
     state: Arc<State>,
     update: bool,
 }
 
-impl InputHandler {
-    pub fn new(state: Arc<State>, task_manager: TaskManager) -> Self {
+impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
+    pub fn new(state: Arc<State>, task_manager: TaskManager<T>) -> Self {
         Self {
             task_manager,
             state,
@@ -89,7 +88,7 @@ impl InputHandler {
                             self.state.config.lock().unwrap().system_config.clone(),
                         ),
                         KeyCode::Char('C') => {
-                            self.task_manager.execute(CommandType::Healthcheck, true)?;
+                            self.task_manager.execute(Command::CheckHealth, true)?;
                         }
                         _ => {}
                     }
@@ -101,12 +100,12 @@ impl InputHandler {
                     KeyCode::Char('l') => {
                         let mut search = self.state.search.lock().unwrap();
                         search.source = PackageLocality::Local;
-                        self.task_manager.execute(CommandType::Search, true)?;
+                        self.task_manager.execute(Command::FilterPackages, true)?;
                     }
                     KeyCode::Char('r') => {
                         let mut search = self.state.search.lock().unwrap();
                         search.source = PackageLocality::Remote;
-                        self.task_manager.execute(CommandType::Search, true)?;
+                        self.task_manager.execute(Command::FilterPackages, true)?;
                     }
                     _ => {}
                 },
@@ -162,7 +161,7 @@ impl InputHandler {
             search.selected_result = 0;
             search.list_state.select(None);
         }
-        self.task_manager.execute(CommandType::Info, true)?;
+        self.task_manager.execute(Command::PackageInfo, true)?;
         Ok(())
     }
 
@@ -171,7 +170,7 @@ impl InputHandler {
             search.selected_result = search.selected_result.saturating_sub(1);
             search.list_state.select_previous();
         }
-        self.task_manager.execute(CommandType::Info, true)?;
+        self.task_manager.execute(Command::PackageInfo, true)?;
         Ok(())
     }
 
@@ -184,7 +183,7 @@ impl InputHandler {
                 search.selected_result.saturating_add(1) % search.results.len();
             search.list_state.select_next();
         }
-        self.task_manager.execute(CommandType::Info, true)?;
+        self.task_manager.execute(Command::PackageInfo, true)?;
         Ok(())
     }
 
@@ -196,7 +195,7 @@ impl InputHandler {
         let current_pane = self.state.current_pane();
         if let Pane::SearchInput = *current_pane {
             drop(current_pane);
-            self.task_manager.execute(CommandType::Search, true)?;
+            self.task_manager.execute(Command::FilterPackages, true)?;
         }
         Ok(())
     }
