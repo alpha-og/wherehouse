@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     fmt::Display,
     io::{BufRead, BufReader},
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Output, Stdio},
     sync::mpsc::{Receiver, channel},
     thread,
 };
@@ -18,7 +18,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    Command::new(alias)
+    std::process::Command::new(alias)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -100,7 +100,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    Command::new(alias).args(args).output()
+    std::process::Command::new(alias).args(args).output()
 }
 
 #[derive(Clone, Copy)]
@@ -118,18 +118,33 @@ impl Display for PackageLocality {
     }
 }
 
+#[derive(PartialEq, Eq, Hash)]
+pub enum Command {
+    FilterPackages,
+    Config,
+    PackageInfo,
+    GeneralInfo,
+    CheckHealth,
+    InstallPackage,
+    UninstallPackage,
+    UpdatePackage,
+    Clean,
+}
+
 pub trait PackageManager {
+    fn alias(&self) -> &'static str;
     fn filter_packages(
         &self,
+        rx: Receiver<bool>,
         source: PackageLocality,
         pattern: String,
     ) -> Result<Vec<String>, String>;
-    // fn check_health() -> Result<String, String>;
-    // fn clean() -> Result<String, String>;
-    // fn package_info(package_name: String) -> Result<String, String>;
-    // fn install(package_name: String) -> Result<(), String>;
-    // fn upgrade(package_name: String) -> Result<(), String>;
-    // fn uninstall(package_name: String) -> Result<(), String>;
+    fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
+    fn check_health(&self, rx: Receiver<bool>) -> Result<String, String>;
+    fn clean(&self, rx: Receiver<bool>) -> Result<String, String>;
+    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
+    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
+    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
 }
 
 // enum PackageManager {
