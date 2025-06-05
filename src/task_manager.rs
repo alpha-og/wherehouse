@@ -37,13 +37,11 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
 
         let worker = match command {
             Command::FilterPackages => Worker::new(tx_task, move || {
-                info!("filtering");
                 let search = state.search.lock().unwrap();
                 let query = search.query.clone();
                 let source = search.source;
                 drop(search);
                 let result = package_manager.filter_packages(rx_task, source, query);
-                info!("filtered");
                 let mut search = state.search.lock().unwrap();
 
                 let output = match result {
