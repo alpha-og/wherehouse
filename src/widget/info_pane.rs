@@ -28,7 +28,8 @@ impl Widget for InfoPane {
             .style(block_style);
 
         let info_style = Style::default().fg(Color::White);
-        let info = Paragraph::new("Homebrew")
+        let config = self.state.config.lock().unwrap();
+        let info = Paragraph::new(format!("{}", config.package_manager))
             .left_aligned()
             .block(block)
             .style(info_style);
