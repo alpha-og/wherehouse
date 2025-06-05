@@ -131,7 +131,7 @@ pub enum Command {
     Clean,
 }
 
-pub trait PackageManager {
+pub trait PackageManager: Send + Sync + 'static {
     fn alias(&self) -> &'static str;
     fn filter_packages(
         &self,
