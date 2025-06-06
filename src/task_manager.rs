@@ -82,18 +82,18 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
 
                 *healthcheck_results = output;
             }),
-            // Command::Config => Worker::new(tx_task, move || {
-            //     let result = self.package_manager.config(rx_task);
-            //     let mut config = state.config.lock().unwrap();
-            //     let output = match result {
-            //         Some(output) => output,
-            //         None => String::default(),
-            //     };
-            //     if update_context {
-            //         state.update_context(output.clone());
-            //     }
-            //     config.system_config = output;
-            // }),
+            Command::Config => Worker::new(tx_task, move || {
+                let result = package_manager.package_manager_config(rx_task);
+                let mut config = state.config.lock().unwrap();
+                let output = match result {
+                    Ok(output) => output,
+                    Err(_) => String::default(),
+                };
+                if update_context {
+                    state.update_context(output.clone());
+                }
+                config.system_config = output;
+            }),
             _ => Worker::new(tx_task, || {}),
         };
         if let Some(worker) = self.pool.insert(command, worker) {
