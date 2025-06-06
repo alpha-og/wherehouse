@@ -1,5 +1,7 @@
 use std::sync::mpsc::Receiver;
 
+use crate::fuzz;
+
 use super::{
     CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
     handle_spawned_command, spawn_command,
@@ -222,6 +224,7 @@ impl PackageManager for Homebrew {
     fn alias(&self) -> &'static str {
         "brew"
     }
+
     fn filter_packages(
         &self,
         _rx: Receiver<bool>,
@@ -230,29 +233,42 @@ impl PackageManager for Homebrew {
     ) -> Result<Vec<String>, String> {
         match package_locality {
             PackageLocality::Local => match Self::brew_list() {
-                Ok(output) => Ok(String::from_utf8(output.stdout)
-                    .unwrap()
-                    .split("\n")
-                    .map(|item| item.to_string())
-                    .collect::<Vec<String>>()),
+                Ok(output) => {
+                    let installed_packages = String::from_utf8(output.stdout)
+                        .unwrap()
+                        .split("\n")
+                        .map(|item| item.to_string())
+                        .collect::<Vec<String>>();
+                    Ok(fuzz(installed_packages, pattern, 3))
+                }
                 Err(e) => Err(format!("failed to execute command brew list: {e}")),
             },
             PackageLocality::Remote => match Self::brew_search(pattern) {
                 Ok(output) => Ok(String::from_utf8(output.stdout)
                     .unwrap()
                     .split("\n")
-                    .map(|item| item.to_string())
+                    .filter_map(|item| {
+                        if item.is_empty() {
+                            None
+                        } else {
+                            Some(item.to_string())
+                        }
+                    })
                     .collect::<Vec<String>>()),
                 Err(e) => Err(format!("failed to execute command brew list: {e}")),
             },
         }
     }
 
+    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, String> {
+        match Self::brew_config() {
+            Ok(output) => Ok(String::from_utf8(output.stdout).unwrap()),
+            Err(e) => Err(format!("{e}")),
+        }
+    }
+
     fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
-        let child = match Self::brew_desc(
-            Some([DescOption::Search, DescOption::EvalAll]),
-            Some([package_name]),
-        ) {
+        let child = match Self::brew_info(Some([InfoOption::Json]), Some([package_name])) {
             Ok(child) => child,
             Err(e) => return Err(format!("{e}")),
         };
