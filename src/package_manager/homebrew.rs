@@ -3,18 +3,16 @@ use std::sync::mpsc::Receiver;
 use crate::fuzz;
 
 use super::{
-    CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
+    Backend, CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
     handle_spawned_command, spawn_command,
 };
 
 pub struct Homebrew;
 
-const HOMEBREW_ALIAS: &'static str = "brew";
-
 impl Homebrew {
     /// Display homebrew version
     fn brew_version() -> CommandResult {
-        command(HOMEBREW_ALIAS, ["--version"])
+        command(Backend::Homebrew.into(), ["--version"])
     }
 
     /// Install specified packages (casks/ formulae)
@@ -33,7 +31,7 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 
     /// Upgrade installed packages
@@ -53,7 +51,7 @@ impl Homebrew {
             args.extend(packages);
         }
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 
     /// Uninstall specified packages (casks/ formulae)
@@ -72,37 +70,37 @@ impl Homebrew {
         }
         args.extend(package_list);
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 
     /// List installed packages (casks/ formulae)
     fn brew_list() -> CommandResult {
-        command(HOMEBREW_ALIAS, ["list"])
+        command(Backend::Homebrew, ["list"])
     }
 
     /// Search homebrew core for specified pattern
     fn brew_search(pattern: String) -> CommandResult {
-        command(HOMEBREW_ALIAS, ["search".to_string(), pattern])
+        command(Backend::Homebrew, ["search".to_string(), pattern])
     }
 
     /// Uninstall formulae that were only installed as a dependency
     /// of another formula and are now no longer needed
     fn brew_autoremove(dry_run: Option<AutoremoveOption>) -> CommandResult {
         if let Some(arg) = dry_run {
-            command(HOMEBREW_ALIAS, ["autoremove", arg.into()])
+            command(Backend::Homebrew, ["autoremove", arg.into()])
         } else {
-            command(HOMEBREW_ALIAS, ["autoremove"])
+            command(Backend::Homebrew, ["autoremove"])
         }
     }
     /// List all locally installable casks including short names
     fn brew_casks() -> CommandResult {
-        command(HOMEBREW_ALIAS, ["casks"])
+        command(Backend::Homebrew, ["casks"])
     }
 
     /// List all locally installable formulae including short
     /// names
     fn brew_formulae() -> CommandResult {
-        command(HOMEBREW_ALIAS, ["formulae"])
+        command(Backend::Homebrew, ["formulae"])
     }
 
     /// Remove stale lock files and outdated downloads for all
@@ -126,7 +124,7 @@ impl Homebrew {
         if let Some(packages) = packages {
             args.extend(packages.into_iter());
         }
-        command(HOMEBREW_ALIAS, args)
+        command(Backend::Homebrew, args)
     }
 
     /// Control whether Homebrew automatically links external
@@ -136,13 +134,13 @@ impl Homebrew {
         if let Some(arg) = subcommand {
             args.push(arg.into());
         }
-        command(HOMEBREW_ALIAS, args)
+        command(Backend::Homebrew, args)
     }
 
     /// Show Homebrew and system configuration info useful
     /// for debugging
     fn brew_config() -> CommandResult {
-        command(HOMEBREW_ALIAS, ["config"])
+        command(Backend::Homebrew, ["config"])
     }
     /// Display formula’s name and one-line description
     fn brew_desc<I, J>(options: Option<I>, query: Option<J>) -> SpawnCommandResult
@@ -158,7 +156,7 @@ impl Homebrew {
             args.extend(query.into_iter());
         }
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 
     /// Check your system for potential problems
@@ -175,7 +173,7 @@ impl Homebrew {
             );
         }
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 
     /// Open a formula or cask’s homepage in a browser, or
@@ -194,7 +192,7 @@ impl Homebrew {
             args.extend(query);
         }
 
-        command(HOMEBREW_ALIAS, args)
+        command(Backend::Homebrew, args)
     }
 
     /// Display brief statistics for your Homebrew installation
@@ -216,7 +214,7 @@ impl Homebrew {
             args.extend(query);
         }
 
-        spawn_command(HOMEBREW_ALIAS, args)
+        spawn_command(Backend::Homebrew, args)
     }
 }
 
