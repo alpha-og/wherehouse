@@ -139,6 +139,7 @@ pub trait PackageManager: Send + Sync + 'static {
         source: PackageLocality,
         pattern: String,
     ) -> Result<Vec<String>, String>;
+    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, String>;
     fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
     fn check_health(&self, rx: Receiver<bool>) -> Result<String, String>;
     fn clean(&self, rx: Receiver<bool>) -> Result<String, String>;
