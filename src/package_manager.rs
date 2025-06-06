@@ -1,11 +1,15 @@
 use std::{
+    env::{self, SplitPaths},
     ffi::OsStr,
     fmt::Display,
     io::{BufRead, BufReader},
-    process::{Child, Output, Stdio},
+    path::PathBuf,
+    process::{Child, Stdio},
     sync::mpsc::{Receiver, channel},
     thread,
 };
+
+use tracing::info;
 
 pub mod homebrew;
 
@@ -13,12 +17,12 @@ pub type SpawnCommandResult = Result<std::process::Child, std::io::Error>;
 pub type CommandResult = std::io::Result<std::process::Output>;
 
 /// spawn a non-blocking command returning the Child
-pub fn spawn_command<I, S>(alias: &'static str, args: I) -> SpawnCommandResult
+pub fn spawn_command<I, S>(backend: Backend, args: I) -> SpawnCommandResult
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    std::process::Command::new(alias)
+    std::process::Command::new(backend.alias())
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -95,12 +99,14 @@ pub fn handle_spawned_command(
 }
 
 /// create a blocking command and run until completion returning the output wrapped in a Result
-pub fn command<I, S>(alias: &'static str, args: I) -> CommandResult
+pub fn command<I, S>(backend: Backend, args: I) -> CommandResult
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    std::process::Command::new(alias).args(args).output()
+    std::process::Command::new(backend.alias())
+        .args(args)
+        .output()
 }
 
 #[derive(Clone, Copy)]
@@ -148,24 +154,87 @@ pub trait PackageManager: Send + Sync + 'static {
     fn uninstall_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
 }
 
-// enum PackageManager {
-//     Homebrew,
-//     Pacman,
-//     Apt,
-//     Winget,
-// }
-//
-// type Alias = &'static str;
-//
-// impl From<PackageManager> for Alias {
-//     fn from(value: PackageManager) -> Self {
-//         match value {
-//             PackageManager::Homebrew => "brew",
-//             PackageManager::Pacman => "pacman",
-//             PackageManager::Apt => "apt",
-//             PackageManager::Winget => "winget",
-//         }
-//     }
-// }
-//
-//
+#[derive(Debug, Clone)]
+pub enum Backend {
+    Homebrew,
+    Pacman,
+    Yay,
+    Dnf,
+    Apt,
+    Winget,
+}
+
+impl Default for Backend {
+    fn default() -> Self {
+        Self::available().get(0).take().unwrap().clone()
+    }
+}
+
+impl From<&str> for Backend {
+    fn from(value: &str) -> Self {
+        match value {
+            "homebrew" | "brew" => Backend::Homebrew,
+            _ => Backend::Homebrew,
+        }
+    }
+}
+
+impl Backend {
+    pub fn alias(&self) -> &'static str {
+        match self {
+            Backend::Homebrew => "brew",
+            Backend::Pacman => "pacman",
+            Backend::Yay => "yay",
+            Backend::Dnf => "dnf",
+            Backend::Apt => "apt",
+            Backend::Winget => "winget",
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Backend::Homebrew => "Homebrew",
+            Backend::Pacman => "Pacman",
+            Backend::Yay => "Yet Another Yogurt",
+            Backend::Dnf => "Dandified YUM",
+            Backend::Apt => "Advanced Package Tool",
+            Backend::Winget => "Windows Package Manager",
+        }
+    }
+
+    fn is_installed(&self, split_paths: SplitPaths) -> bool {
+        split_paths
+            .filter(|path| {
+                let path_to_binary = path.join(self.alias());
+                path_to_binary.is_file()
+            })
+            .collect::<Vec<_>>()
+            .len()
+            != 0
+    }
+
+    fn available() -> Vec<Backend> {
+        let mut available_backends = vec![];
+        let path = match env::var_os("PATH") {
+            Some(path) => path,
+            None => return available_backends,
+        };
+        let supported_backends = [
+            Backend::Homebrew,
+            Backend::Pacman,
+            Backend::Yay,
+            Backend::Dnf,
+            Backend::Apt,
+            Backend::Winget,
+        ];
+
+        supported_backends.iter().for_each(|backend| {
+            let split_paths = env::split_paths(&path);
+            if backend.is_installed(split_paths) {
+                available_backends.push(backend.clone());
+            }
+        });
+
+        available_backends
+    }
+}
