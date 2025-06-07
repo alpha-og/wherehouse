@@ -8,17 +8,17 @@ use ratatui::{
 
 use crate::state::{Pane, State};
 
-pub struct InfoPane {
+pub struct AboutPane {
     state: Arc<State>,
 }
 
-impl Widget for InfoPane {
+impl Widget for AboutPane {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
-        let block_style = match *self.state.current_pane() {
-            Pane::Info => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        let block_style = match self.state.current_pane() {
+            Pane::About(_) => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };
         let block = Block::bordered()
@@ -28,8 +28,7 @@ impl Widget for InfoPane {
             .style(block_style);
 
         let info_style = Style::default().fg(Color::White);
-        let config = self.state.config.lock().unwrap();
-        let info = Paragraph::new(format!("{}", config.package_manager))
+        let info = Paragraph::new(format!("{}", "Homebrew"))
             .left_aligned()
             .block(block)
             .style(info_style);
@@ -37,7 +36,7 @@ impl Widget for InfoPane {
     }
 }
 
-impl InfoPane {
+impl AboutPane {
     pub fn new(state: Arc<State>) -> Self {
         Self { state }
     }
