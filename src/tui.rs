@@ -5,7 +5,7 @@ use ratatui::layout::{Constraint, Layout};
 use crate::{
     state::State,
     widget::{
-        context_pane::ContextPane, info_pane::InfoPane, search_input_pane::SearchInputPane,
+        about_pane::AboutPane, context_pane::ContextPane, search_input_pane::SearchInputPane,
         search_results_pane::SearchResultsPane, status_bar::StatusBar,
     },
 };
@@ -55,10 +55,8 @@ impl Tui {
     ) -> color_eyre::Result<()> {
         loop {
             terminal.draw(|frame| self.draw(frame))?;
-            if let Ok(should_quit) = self.state.should_quit.try_lock() {
-                if *should_quit {
-                    break;
-                }
+            if self.state.exit() {
+                break;
             }
         }
         Ok(())
@@ -78,8 +76,8 @@ impl Tui {
         ])
         .split(main_layout[0]);
 
-        let info_pane = InfoPane::new(self.state.clone());
-        frame.render_widget(info_pane, sidebar_layout[0]);
+        let about_pane = AboutPane::new(self.state.clone());
+        frame.render_widget(about_pane, sidebar_layout[0]);
 
         let search_input_pane = SearchInputPane::new(self.state.clone());
         frame.render_widget(search_input_pane, sidebar_layout[1]);

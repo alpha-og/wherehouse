@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
-use tracing::info;
 use wherehouse::package_manager::{Command, PackageLocality, PackageManager};
 
 use crate::{
@@ -26,16 +25,14 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
     pub fn run(&mut self) -> color_eyre::Result<()> {
         loop {
             self.capture_input()?;
-            if let Ok(should_quit) = self.state.should_quit.try_lock() {
-                if *should_quit {
-                    break;
-                }
+            if self.state.exit() {
+                break;
             }
         }
         Ok(())
     }
     fn capture_input(&mut self) -> color_eyre::Result<()> {
-        if event::poll(Duration::from_millis(300)).unwrap() {
+        if event::poll(Duration::from_millis(300))? {
             self.update = true;
             match event::read().unwrap() {
                 event::Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
@@ -50,62 +47,52 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
     }
     fn handle_key_press(&mut self, key_event: event::KeyEvent) -> color_eyre::Result<()> {
         let state = self.state.clone();
-        let mut current_pane = state.current_pane();
-        let mut input_mode = state.input_mode.lock().unwrap();
-
-        if let InputMode::Normal = *input_mode {
+        let input_mode = state.input_mode();
+        if let InputMode::Normal = input_mode {
             match key_event.code {
                 KeyCode::Char('1') => {
-                    *current_pane = Pane::Info;
-                    self.state
-                        .update_context(self.state.config.lock().unwrap().system_config.clone());
+                    self.task_manager.execute(Command::Config)?;
+                    state.set_current_pane(Pane::About(state.about()));
                 }
                 KeyCode::Char('2') => {
-                    *current_pane = Pane::SearchInput;
-                    self.state.update_context(String::default());
+                    state.set_current_pane(Pane::SearchInput);
                 }
                 KeyCode::Char('3') => {
-                    *current_pane = Pane::SearchResults;
-                    self.state.update_context(
-                        self.state
-                            .search
-                            .lock()
-                            .unwrap()
-                            .selected_result_info
-                            .clone(),
-                    );
+                    state.set_current_pane(Pane::SearchResults(
+                        (*state.search()).selected_result_info.clone(),
+                    ));
                 }
                 KeyCode::Char('q') => self.quit()?,
                 _ => {}
             }
         }
 
-        match *current_pane {
-            Pane::Info => {
-                if let InputMode::Normal = *input_mode {
+        match state.current_pane() {
+            Pane::About(_) => {
+                if let InputMode::Normal = input_mode {
                     match key_event.code {
-                        KeyCode::Char('I') => self.state.update_context(
-                            self.state.config.lock().unwrap().system_config.clone(),
-                        ),
+                        // KeyCode::Char('I') => self.state.update_context(
+                        //     self.state.config.lock().unwrap().system_config.clone(),
+                        // ),
                         KeyCode::Char('C') => {
-                            self.task_manager.execute(Command::CheckHealth, true)?;
+                            self.task_manager.execute(Command::CheckHealth)?;
                         }
                         _ => {}
                     }
                 }
             }
-            Pane::SearchInput => match *input_mode {
+            Pane::SearchInput => match input_mode {
                 InputMode::Normal => match key_event.code {
-                    KeyCode::Char('i') => *input_mode = InputMode::Insert,
+                    KeyCode::Char('i') => state.set_input_mode(InputMode::Insert),
                     KeyCode::Char('l') => {
-                        let mut search = self.state.search.lock().unwrap();
+                        let mut search = state.search();
                         search.source = PackageLocality::Local;
-                        self.task_manager.execute(Command::FilterPackages, true)?;
+                        self.task_manager.execute(Command::FilterPackages)?;
                     }
                     KeyCode::Char('r') => {
-                        let mut search = self.state.search.lock().unwrap();
+                        let mut search = state.search();
                         search.source = PackageLocality::Remote;
-                        self.task_manager.execute(Command::FilterPackages, true)?;
+                        self.task_manager.execute(Command::FilterPackages)?;
                     }
                     _ => {}
                 },
@@ -114,16 +101,17 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
                     KeyCode::Backspace => {
                         self.pop_search_query()?;
                     }
-                    KeyCode::Esc => *input_mode = InputMode::Normal,
+                    KeyCode::Esc => state.set_input_mode(InputMode::Normal),
                     _ => {}
                 },
-                _ => {}
             },
-            Pane::SearchResults => match *input_mode {
+            Pane::SearchResults(_) => match input_mode {
                 InputMode::Normal => match key_event.code {
                     KeyCode::Char('q') => self.quit()?,
                     KeyCode::Char('k') => self.select_previous_search_result()?,
                     KeyCode::Char('j') => self.select_next_search_result()?,
+                    KeyCode::Char('I') => self.task_manager.execute(Command::InstallPackage)?,
+                    KeyCode::Char('X') => self.task_manager.execute(Command::UninstallPackage)?,
                     _ => {}
                 },
                 _ => {}
@@ -134,56 +122,46 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
     }
 
     fn quit(&self) -> color_eyre::Result<()> {
-        if let Ok(mut should_quit) = self.state.should_quit.lock() {
-            *should_quit = true;
-        }
+        self.state.set_exit(true);
         Ok(())
     }
 
     fn append_search_query(&mut self, ch: char) -> color_eyre::Result<()> {
+        self.reset_selected_search_result()?;
         if let Ok(mut search) = self.state.search.lock() {
             search.query.push(ch);
         }
-        self.reset_selected_search_result()?;
         Ok(())
     }
 
     fn pop_search_query(&mut self) -> color_eyre::Result<()> {
+        self.reset_selected_search_result()?;
         if let Ok(mut search) = self.state.search.lock() {
             search.query.pop();
         }
-        self.reset_selected_search_result()?;
         Ok(())
     }
 
     fn reset_selected_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
-            search.selected_result = 0;
             search.list_state.select(None);
         }
-        self.task_manager.execute(Command::PackageInfo, true)?;
         Ok(())
     }
 
     fn select_previous_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
-            search.selected_result = search.selected_result.saturating_sub(1);
             search.list_state.select_previous();
         }
-        self.task_manager.execute(Command::PackageInfo, true)?;
+        self.task_manager.execute(Command::PackageInfo)?;
         Ok(())
     }
 
     fn select_next_search_result(&mut self) -> color_eyre::Result<()> {
         if let Ok(mut search) = self.state.search.lock() {
-            if search.results.len() == 0 {
-                return Ok(());
-            }
-            search.selected_result =
-                search.selected_result.saturating_add(1) % search.results.len();
             search.list_state.select_next();
         }
-        self.task_manager.execute(Command::PackageInfo, true)?;
+        self.task_manager.execute(Command::PackageInfo)?;
         Ok(())
     }
 
@@ -192,10 +170,14 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
             return Ok(());
         };
         self.update = false;
-        let current_pane = self.state.current_pane();
-        if let Pane::SearchInput = *current_pane {
-            drop(current_pane);
-            self.task_manager.execute(Command::FilterPackages, true)?;
+        if let Pane::SearchInput = self.state.current_pane() {
+            if self.state.search().query.is_empty() {
+                self.reset_selected_search_result()?;
+                let mut search = self.state.search.lock().unwrap();
+                search.results = Vec::default();
+                return Ok(());
+            };
+            self.task_manager.execute(Command::FilterPackages)?;
         }
         Ok(())
     }

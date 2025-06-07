@@ -4,22 +4,92 @@ use std::{
 };
 
 use ratatui::widgets::ListState;
-use wherehouse::package_manager::PackageLocality;
+use wherehouse::package_manager::{Backend, PackageLocality};
 
-use crate::commands::PackageManager;
+pub struct State {
+    exit: Arc<Mutex<bool>>,
+    pub config: Arc<Mutex<Config>>,
+    about: Arc<Mutex<String>>,
 
-#[derive(Clone, Copy)]
-pub enum InputMode {
-    Normal,
-    Insert,
+    current_pane: Arc<Mutex<Pane>>,
+    input_mode: Arc<Mutex<InputMode>>,
+    pub search: Arc<Mutex<SearchState>>,
+    healthcheck_results: Arc<Mutex<String>>,
+}
+
+impl State {
+    pub fn new() -> Self {
+        Self {
+            exit: Arc::new(Mutex::new(false)),
+            config: Arc::new(Mutex::new(Config::default())),
+            about: Arc::new(Mutex::new(String::default())),
+
+            current_pane: Arc::new(Mutex::new(Pane::SearchInput)),
+            input_mode: Arc::new(Mutex::new(InputMode::Insert)),
+            search: Arc::new(Mutex::new(SearchState::default())),
+            healthcheck_results: Arc::new(Mutex::new(String::default())),
+        }
+    }
+
+    pub fn exit(&self) -> bool {
+        match self.exit.try_lock() {
+            Ok(exit) => *exit,
+            Err(_) => false,
+        }
+    }
+    pub fn set_exit(&self, exit: bool) {
+        *self.exit.lock().unwrap() = exit;
+    }
+
+    pub fn config(&self) -> MutexGuard<'_, Config> {
+        self.config.lock().unwrap()
+    }
+
+    pub fn about(&self) -> String {
+        (*self.about.lock().unwrap()).clone()
+    }
+    pub fn set_about(&self, content: String) {
+        *self.about.lock().unwrap() = content;
+    }
+
+    pub fn current_pane(&self) -> Pane {
+        (*self.current_pane.lock().unwrap()).clone()
+    }
+    pub fn set_current_pane(&self, pane: Pane) {
+        *self.current_pane.lock().unwrap() = pane;
+    }
+
+    pub fn input_mode(&self) -> InputMode {
+        *self.input_mode.lock().unwrap()
+    }
+    pub fn set_input_mode(&self, input_mode: InputMode) {
+        *self.input_mode.lock().unwrap() = input_mode;
+    }
+
+    pub fn search(&self) -> MutexGuard<'_, SearchState> {
+        self.search.lock().unwrap()
+    }
+
+    pub fn healthcheck_results(&self) -> String {
+        (*self.healthcheck_results.lock().unwrap()).clone()
+    }
+    pub fn set_healthcheck_results(&self, result: String) {
+        *self.healthcheck_results.lock().unwrap() = result;
+    }
 }
 
 #[derive(Clone)]
 pub enum Pane {
     SearchInput,
-    SearchResults,
-    Info,
+    SearchResults(String),
+    About(String),
     Context,
+}
+
+#[derive(Clone, Copy)]
+pub enum InputMode {
+    Normal,
+    Insert,
 }
 
 impl Display for InputMode {
@@ -31,23 +101,9 @@ impl Display for InputMode {
     }
 }
 
-impl Display for SearchSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Local => write!(f, "Local"),
-            Self::Remote => write!(f, "Remote"),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum SearchSource {
-    Remote,
-    Local,
-}
-
 pub type SearchResults = Vec<String>;
 
+#[derive(Clone)]
 pub struct SearchState {
     pub query: String,
     pub results: SearchResults,
@@ -55,36 +111,6 @@ pub struct SearchState {
     pub selected_result_info: String,
     pub list_state: ListState,
     pub source: PackageLocality,
-}
-
-pub struct Config {
-    pub package_manager: PackageManager,
-    pub package_manager_version: String,
-    pub system_config: String,
-    pub app_version: String,
-    pub app_name: String,
-}
-
-pub struct State {
-    pub current_pane: Arc<Mutex<Pane>>,
-    pub input_mode: Arc<Mutex<InputMode>>,
-    pub search: Arc<Mutex<SearchState>>,
-    pub should_quit: Arc<Mutex<bool>>,
-    pub config: Arc<Mutex<Config>>,
-    pub healthcheck_results: Arc<Mutex<String>>,
-    pub context_content: Arc<Mutex<String>>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            package_manager: PackageManager::Homebrew,
-            package_manager_version: String::default(),
-            app_version: String::default(),
-            app_name: String::from("WhereHouse"),
-            system_config: String::default(),
-        }
-    }
 }
 
 impl Default for SearchState {
@@ -100,23 +126,20 @@ impl Default for SearchState {
     }
 }
 
-impl State {
-    pub fn new() -> Self {
+pub struct Config {
+    pub backend: Backend,
+    pub system_config: String,
+    pub app_version: String,
+    pub app_name: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
         Self {
-            current_pane: Arc::new(Mutex::new(Pane::SearchInput)),
-            input_mode: Arc::new(Mutex::new(InputMode::Insert)),
-            search: Arc::new(Mutex::new(SearchState::default())),
-            should_quit: Arc::new(Mutex::new(false)),
-            config: Arc::new(Mutex::new(Config::default())),
-            healthcheck_results: Arc::new(Mutex::new(String::default())),
-            context_content: Arc::new(Mutex::new(String::default())),
+            backend: Backend::default(),
+            app_version: String::from("0.1.0"),
+            app_name: String::from("WhereHouse"),
+            system_config: String::default(),
         }
-    }
-    pub fn current_pane(&self) -> MutexGuard<'_, Pane> {
-        self.current_pane.lock().unwrap()
-    }
-    pub fn update_context(&self, content: String) {
-        let mut context_content = self.context_content.lock().unwrap();
-        *context_content = content;
     }
 }
