@@ -18,16 +18,14 @@ impl Widget for StatusBar {
     where
         Self: Sized,
     {
-        let input_mode = self.state.input_mode.lock().unwrap();
         let config = self.state.config.lock().unwrap();
-        let current_pane = self.state.current_pane.lock().unwrap();
         let search = self.state.search.lock().unwrap();
 
-        let left_text = match *current_pane {
-            Pane::SearchInput | Pane::SearchResults => {
-                format!(" {} | {} ", *input_mode, search.source)
+        let left_text = match self.state.current_pane() {
+            Pane::SearchInput | Pane::SearchResults(_) => {
+                format!(" {} | {} ", self.state.input_mode(), search.source)
             }
-            _ => format!(" {} ", *input_mode),
+            _ => format!(" {} ", self.state.input_mode()),
         };
         let status_bar_layout =
             Layout::horizontal(vec![Constraint::Percentage(70), Constraint::Fill(1)]).split(area);
@@ -37,15 +35,10 @@ impl Widget for StatusBar {
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD),
         );
-        let status_bar_right = Paragraph::new(format!(
-            " {} {} | {} {} ",
-            config.app_name,
-            config.app_version,
-            config.package_manager,
-            config.package_manager_version,
-        ))
-        .right_aligned()
-        .fg(Color::Green);
+        let status_bar_right =
+            Paragraph::new(format!(" {} {}", config.app_name, config.app_version,))
+                .right_aligned()
+                .fg(Color::Green);
         status_bar_left.render(status_bar_layout[0], buf);
         status_bar_right.render(status_bar_layout[1], buf);
     }

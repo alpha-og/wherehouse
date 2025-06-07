@@ -17,8 +17,8 @@ impl StatefulWidget for SearchResultsPane {
         buf: &mut ratatui::prelude::Buffer,
         state: &mut Self::State,
     ) {
-        let block_style = match *self.state.current_pane() {
-            Pane::SearchResults => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        let block_style = match self.state.current_pane() {
+            Pane::SearchResults(_) => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };
         let block = Block::bordered()

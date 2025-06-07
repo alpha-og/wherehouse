@@ -17,7 +17,7 @@ impl Widget for SearchInputPane {
     where
         Self: Sized,
     {
-        let block_style = match *self.state.current_pane() {
+        let block_style = match self.state.current_pane() {
             Pane::SearchInput => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };

@@ -15,7 +15,7 @@ impl Widget for ContextPane {
     where
         Self: Sized,
     {
-        let block_style = match *self.state.current_pane() {
+        let block_style = match self.state.current_pane() {
             Pane::Context => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };
@@ -24,9 +24,13 @@ impl Widget for ContextPane {
             // .title("4")
             .title_alignment(Alignment::Left)
             .style(block_style);
-        let content = self.state.context_content.lock().unwrap().clone();
+        let context = match self.state.current_pane() {
+            Pane::About(context) => context,
+            Pane::SearchResults(context) => context,
+            _ => String::default(),
+        };
         let context_style = Style::default().fg(Color::White);
-        let context = Paragraph::new(content)
+        let context = Paragraph::new(context)
             .left_aligned()
             .block(block)
             .style(context_style);
