@@ -3,13 +3,10 @@ use std::{
     ffi::OsStr,
     fmt::Display,
     io::{BufRead, BufReader},
-    path::PathBuf,
     process::{Child, Stdio},
     sync::mpsc::{Receiver, channel},
     thread,
 };
-
-use tracing::info;
 
 pub mod homebrew;
 
@@ -149,9 +146,10 @@ pub trait PackageManager: Send + Sync + 'static {
     fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
     fn check_health(&self, rx: Receiver<bool>) -> Result<String, String>;
     fn clean(&self, rx: Receiver<bool>) -> Result<String, String>;
-    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
-    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
-    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String>;
+    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
+    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
+    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String)
+    -> Result<String, String>;
 }
 
 #[derive(Debug, Clone)]

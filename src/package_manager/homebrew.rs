@@ -266,7 +266,7 @@ impl PackageManager for Homebrew {
     }
 
     fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
-        let child = match Self::brew_info(Some([InfoOption::Json]), Some([package_name])) {
+        let child = match Self::brew_info::<Vec<InfoOption>, _>(None, Some([package_name])) {
             Ok(child) => child,
             Err(e) => return Err(format!("{e}")),
         };
@@ -291,36 +291,40 @@ impl PackageManager for Homebrew {
             Err(e) => Err(format!("{e}")),
         }
     }
-    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
         let child = match Self::brew_install::<Vec<InstallOption>, _>(None, [package_name]) {
             Ok(child) => child,
             Err(e) => return Err(format!("{e}")),
         };
 
         match handle_spawned_command(rx, child) {
-            Some(_) => Ok(()),
+            Some(output) => Ok(output.out.unwrap()),
             None => Err("could not execute command".to_string()),
         }
     }
-    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
         let child = match Self::brew_upgrade(Some([package_name])) {
             Ok(child) => child,
             Err(e) => return Err(format!("{e}")),
         };
 
         match handle_spawned_command(rx, child) {
-            Some(_) => Ok(()),
+            Some(output) => Ok(output.out.unwrap()),
             None => Err("could not execute command".to_string()),
         }
     }
-    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String) -> Result<(), String> {
+    fn uninstall_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, String> {
         let child = match Self::brew_uninstall::<Vec<UninstallOption>, _>(None, [package_name]) {
             Ok(child) => child,
             Err(e) => return Err(format!("{e}")),
         };
 
         match handle_spawned_command(rx, child) {
-            Some(_) => Ok(()),
+            Some(output) => Ok(output.out.unwrap()),
             None => Err("could not execute command".to_string()),
         }
     }
