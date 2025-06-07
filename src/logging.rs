@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
-use color_eyre::eyre::{Context, Result};
-use directories::ProjectDirs;
+use color_eyre::eyre::Result;
 use lazy_static::lazy_static;
-use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{self, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -15,10 +13,6 @@ lazy_static! {
             .map(PathBuf::from);
     pub static ref LOG_ENV: String = format!("{}_LOGLEVEL", PROJECT_NAME.clone());
     pub static ref LOG_FILE: String = format!("{}.log", env!("CARGO_PKG_NAME"));
-}
-
-fn project_directory() -> Option<ProjectDirs> {
-    ProjectDirs::from("com", "kdheepak", env!("CARGO_PKG_NAME"))
 }
 
 pub fn get_data_dir() -> PathBuf {
