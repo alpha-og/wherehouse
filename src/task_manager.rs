@@ -38,11 +38,6 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                 info!("Command::FilterPackages => {query}");
                 let source = search.source;
                 drop(search);
-                if query.is_empty() {
-                    let mut search = state.search.lock().unwrap();
-                    search.results = Vec::default();
-                    return;
-                }
                 let result = package_manager.filter_packages(rx_task, source, query);
                 let mut search = state.search.lock().unwrap();
 

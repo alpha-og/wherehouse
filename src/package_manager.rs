@@ -152,6 +152,12 @@ pub trait PackageManager: Send + Sync + 'static {
     -> Result<String, String>;
 }
 
+pub fn detect_package_manager() -> impl PackageManager {
+    let backend = Backend::default();
+    let package_manager = Backend::package_manager_from_backend(backend);
+    package_manager
+}
+
 #[derive(Debug, Clone)]
 pub enum Backend {
     Homebrew,
@@ -197,6 +203,13 @@ impl Backend {
             Backend::Dnf => "Dandified YUM",
             Backend::Apt => "Advanced Package Tool",
             Backend::Winget => "Windows Package Manager",
+        }
+    }
+
+    pub fn package_manager_from_backend(backend: Backend) -> impl PackageManager {
+        match backend {
+            Backend::Homebrew => homebrew::Homebrew,
+            _ => panic!("Unsupported package manager"),
         }
     }
 

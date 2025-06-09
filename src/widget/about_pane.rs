@@ -28,7 +28,7 @@ impl Widget for AboutPane {
             .style(block_style);
 
         let info_style = Style::default().fg(Color::White);
-        let info = Paragraph::new(format!("{}", "Homebrew"))
+        let info = Paragraph::new(format!("{}", self.state.config().backend.name()))
             .left_aligned()
             .block(block)
             .style(info_style);

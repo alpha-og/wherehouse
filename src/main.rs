@@ -4,7 +4,7 @@ use state::State;
 use std::{sync::Arc, thread};
 use task_manager::TaskManager;
 use tracing::info;
-use wherehouse::package_manager::homebrew::Homebrew;
+use wherehouse::package_manager::{self};
 
 mod input;
 mod logging;
@@ -19,7 +19,7 @@ fn main() -> color_eyre::Result<()> {
     info!("Initialized logging");
 
     let state = Arc::new(State::new());
-    let package_manager = Arc::new(Homebrew);
+    let package_manager = Arc::new(package_manager::detect_package_manager());
     let task_manager = TaskManager::new(state.clone(), package_manager);
 
     let mut input_handler = InputHandler::new(state.clone(), task_manager);
