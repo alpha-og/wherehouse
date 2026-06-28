@@ -40,9 +40,16 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             *state.input_mode.lock().unwrap() = *mode;
             None
         }
+        super::Event::ContextScroll(delta) => {
+            let mut scroll = state.context_scroll.lock().unwrap();
+            *scroll = scroll.saturating_add_signed(*delta);
+            None
+        }
         super::Event::PaneFocused(pane) => {
+            *state.context_scroll.lock().unwrap() = 0;
             *state.current_pane.lock().unwrap() = pane.clone();
             if matches!(pane, Pane::SearchResults(_)) {
+                *state.input_mode.lock().unwrap() = super::InputMode::Normal;
                 let mut search = state.search.lock().unwrap();
                 if search.list_state.selected().is_none() && !search.results.is_empty() {
                     search.list_state.select(Some(0));

@@ -8,6 +8,8 @@ color-eyre = "0.6.5"
 directories = "6.0.0"
 lazy_static = "1.5.0"
 ratatui = "0.30.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tracing = "0.1.44"
 tracing-error = "0.2.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

@@ -17,4 +17,5 @@ pub enum Event {
     CommandOutputReceived { cmd: Command, output: String },
     CommandFailed { cmd: Command, error: String },
     ShowToast { message: String, toast_type: ToastType },
+    ContextScroll(isize),
 }

@@ -294,7 +294,10 @@ impl PackageManager for Homebrew {
         rx: Receiver<bool>,
         package_name: String,
     ) -> Result<String, PackageManagerError> {
-        let child = match Self::brew_info::<Vec<InfoOption>, _>(None, Some([package_name])) {
+        let child = match Self::brew_info::<Vec<InfoOption>, _>(
+            Some(vec![InfoOption::Json]),
+            Some(vec![package_name]),
+        ) {
             Ok(child) => child,
             Err(e) => return Err(PackageManagerError::from(e)),
         };
@@ -483,7 +486,7 @@ impl From<InfoOption> for String {
             InfoOption::Category => "--category".to_string(),
             InfoOption::Github => "--github".to_string(),
             InfoOption::FetchManifest => "--fetch-manifest".to_string(),
-            InfoOption::Json => "--json".to_string(),
+            InfoOption::Json => "--json=v2".to_string(),
             InfoOption::Installed => "--installed".to_string(),
             InfoOption::EvalAll => "--eval-all".to_string(),
             InfoOption::Variations => "--variations".to_string(),

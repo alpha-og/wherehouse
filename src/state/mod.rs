@@ -53,6 +53,7 @@ pub struct State {
 
     pub toasts: Arc<Mutex<Vec<Toast>>>,
     pub running_commands: Arc<Mutex<Vec<Command>>>,
+    pub context_scroll: Arc<Mutex<usize>>,
 }
 
 impl State {
@@ -69,6 +70,7 @@ impl State {
 
             toasts: Arc::new(Mutex::new(Vec::new())),
             running_commands: Arc::new(Mutex::new(Vec::new())),
+            context_scroll: Arc::new(Mutex::new(0)),
         }
     }
 

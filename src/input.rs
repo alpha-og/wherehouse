@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use std::time::Instant;
 use std::{sync::Arc, time::Duration};
 
-use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
+use ratatui::crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
 use wherehouse::package_manager::Command;
 
 use crate::state::{Event, InputMode, Pane, State};
@@ -70,6 +70,11 @@ impl InputHandler {
                         KeyCode::Char('C') => {
                             self.tx.send(Event::CommandIssued(Command::CheckHealth))?;
                         }
+                        _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
+                            KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
+                            KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
+                            _ => {}
+                        },
                         _ => {}
                     }
                 }
@@ -104,6 +109,11 @@ impl InputHandler {
                         self.tx
                             .send(Event::CommandIssued(Command::UninstallPackage))?;
                     }
+                    _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
+                        KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
+                        KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
+                        _ => {}
+                    },
                     _ => {}
                 },
                 _ => {}
