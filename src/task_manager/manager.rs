@@ -11,16 +11,16 @@ use super::worker::Worker;
 
 pub struct TaskManager {
     state: Arc<State>,
-    package_manager: Arc<dyn PackageManager>,
+    backends: Arc<Vec<Arc<dyn PackageManager>>>,
     tx: Sender<Event>,
     pool: HashMap<Command, Worker>,
 }
 
 impl TaskManager {
-    pub fn new(state: Arc<State>, package_manager: Arc<dyn PackageManager>, tx: Sender<Event>) -> Self {
+    pub fn new(state: Arc<State>, backends: Arc<Vec<Arc<dyn PackageManager>>>, tx: Sender<Event>) -> Self {
         Self {
             state,
-            package_manager,
+            backends,
             tx,
             pool: HashMap::default(),
         }
@@ -28,7 +28,7 @@ impl TaskManager {
 
     pub fn execute(&mut self, command: Command) -> color_eyre::Result<()> {
         let state = self.state.clone();
-        let package_manager = self.package_manager.clone();
+        let backends = self.backends.clone();
         let tx = self.tx.clone();
         let (tx_task, rx_task) = mpsc::channel::<bool>();
 
@@ -38,7 +38,8 @@ impl TaskManager {
                 let query = search.query.clone();
                 drop(search);
                 info!("Command::FilterPackages => {query}");
-                let result = package_manager.filter_packages(rx_task, query.clone());
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.filter_packages(rx_task, query.clone());
                 match result {
                     Ok((results, warning)) => {
                         let _ = tx.send(Event::SearchCompleted { results, warning, query });
@@ -63,7 +64,8 @@ impl TaskManager {
                 };
                 info!("Command::PackageInfo => {package_name}");
                 drop(search);
-                let result = package_manager.package_info(rx_task, package_name);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.package_info(rx_task, package_name);
                 let output = match result {
                     Ok(output) => output,
                     Err(e) => {
@@ -90,7 +92,8 @@ impl TaskManager {
                 };
                 info!("Command::InstallPackage => {package_name}");
                 drop(search);
-                let result = package_manager.install_package(rx_task, package_name);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.install_package(rx_task, package_name);
                 let output = match result {
                     Ok(output) => output,
                     Err(_) => String::default(),
@@ -111,7 +114,8 @@ impl TaskManager {
                 };
                 info!("Command::UninstallPackage => {package_name}");
                 drop(search);
-                let result = package_manager.uninstall_package(rx_task, package_name);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.uninstall_package(rx_task, package_name);
                 let output = match result {
                     Ok(output) => output,
                     Err(_) => String::default(),
@@ -122,7 +126,8 @@ impl TaskManager {
                 });
             }),
             Command::CheckHealth => Worker::new(tx_task, move || {
-                let result = package_manager.check_health(rx_task);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.check_health(rx_task);
                 let output = match result {
                     Ok(output) => output,
                     Err(e) => {
@@ -149,7 +154,8 @@ impl TaskManager {
                 };
                 info!("Command::UpdatePackage => {package_name}");
                 drop(search);
-                let result = package_manager.update_package(rx_task, package_name);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.update_package(rx_task, package_name);
                 let output = match result {
                     Ok(output) => output,
                     Err(_) => String::default(),
@@ -161,7 +167,8 @@ impl TaskManager {
             }),
             Command::UpdateAll => Worker::new(tx_task, move || {
                 info!("Command::UpdateAll");
-                let result = package_manager.update_all_packages(rx_task);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.update_all_packages(rx_task);
                 let output = match result {
                     Ok(output) => output,
                     Err(_) => String::default(),
@@ -173,7 +180,8 @@ impl TaskManager {
             }),
             Command::CheckOutdated => Worker::new(tx_task, move || {
                 info!("Command::CheckOutdated");
-                let result = package_manager.check_outdated(rx_task);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.check_outdated(rx_task);
                 let outdated = match result {
                     Ok(names) => names,
                     Err(_) => Vec::new(),
@@ -181,7 +189,8 @@ impl TaskManager {
                 let _ = tx.send(Event::OutdatedCheckCompleted { outdated });
             }),
             Command::Config => Worker::new(tx_task, move || {
-                let result = package_manager.package_manager_config(rx_task);
+                let pm = backends[state.current_backend_index()].clone();
+                let result = pm.package_manager_config(rx_task);
                 let output = match result {
                     Ok(output) => output,
                     Err(e) => {

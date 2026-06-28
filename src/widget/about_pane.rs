@@ -3,6 +3,7 @@ use std::sync::Arc;
 use ratatui::{
     layout::HorizontalAlignment,
     style::{Color, Modifier, Style},
+    text::Span,
     widgets::{Block, BorderType, Paragraph, Widget},
 };
 
@@ -23,15 +24,23 @@ impl Widget for AboutPane {
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .title("[1] About")
+            .title("[1] Package Manager")
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
 
-        let info_style = Style::default().fg(Color::White);
-        let info = Paragraph::new(format!("{}", self.state.config().backend.name()))
+        let backend = self.state.current_backend();
+        let count = self.state.available_backends.len();
+        let idx = self.state.current_backend_index();
+        let label = if count > 1 {
+            format!("{}  [< {} of {} >]", backend.name(), idx + 1, count)
+        } else {
+            backend.name().to_string()
+        };
+
+        let info = Paragraph::new(Span::raw(label))
             .left_aligned()
             .block(block)
-            .style(info_style);
+            .style(Style::default().fg(Color::White));
         info.render(area, buf);
     }
 }

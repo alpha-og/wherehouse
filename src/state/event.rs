@@ -20,4 +20,5 @@ pub enum Event {
     ToggleUpdatableFilter,
     ContextScroll(isize),
     OutdatedCheckCompleted { outdated: Vec<String> },
+    SwitchBackend(isize),
 }

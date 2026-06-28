@@ -289,6 +289,26 @@ pub fn update(state: &State, event: &super::Event) -> Vec<Command> {
             }
             vec![]
         }
+        super::Event::SwitchBackend(delta) => {
+            let backend = state.cycle_backend(*delta);
+            state.config.lock().unwrap().backend = backend;
+            state.config.lock().unwrap().system_config.clear();
+            *state.healthcheck_results.lock().unwrap() = String::new();
+            *state.context_scroll.lock().unwrap() = 0;
+            {
+                let mut search = state.search.lock().unwrap();
+                search.query.clear();
+                search.results.clear();
+                search.all_results.clear();
+                search.selected_result_info.clear();
+                search.list_state.select(None);
+            }
+            invalidate_caches(state);
+            state.package_info_cache.invalidate_all();
+            state.search_cache.invalidate_all();
+            state.switch_pane(Pane::About(String::new()));
+            vec![Command::Config, Command::FilterPackages]
+        }
         super::Event::ShowToast { message, toast_type } => {
             state.add_toast(message.clone(), *toast_type);
             vec![]

@@ -1,5 +1,10 @@
 use std::sync::mpsc::Receiver;
 
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+};
+
 use crate::package_manager::error::PackageManagerError;
 
 use super::{
@@ -294,4 +299,65 @@ impl PackageManager for Pnpm {
             Err(e) => Err(PackageManagerError::from(e)),
         }
     }
+
+    fn render_config(&self, raw: &str, app_name: &str, app_version: &str) -> Vec<Line<'static>> {
+        let mut lines = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            format!("  {app_name} v{app_version}"),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(Span::styled(
+            "  ─────────────────────",
+            Style::default().fg(Color::DarkGray),
+        )));
+        lines.push(Line::from(""));
+
+        lines.push(section_header("Backend"));
+        lines.push(label_line("Name", "pnpm"));
+
+        let kv: Vec<_> = raw
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim();
+                if l.is_empty() || l.starts_with(';') {
+                    return None;
+                }
+                l.split_once('=').map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+            })
+            .collect();
+
+        if !kv.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(section_header("Config"));
+            for (k, v) in &kv {
+                lines.push(label_line(k, v));
+            }
+        }
+
+        lines
+    }
+}
+
+fn section_header(text: &str) -> Line<'static> {
+    Line::from(Span::styled(
+        format!("  ── {} ──", text),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ))
+}
+
+fn label_line(label: &str, value: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            format!("  {}: ", label),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(value.to_string()),
+    ])
 }

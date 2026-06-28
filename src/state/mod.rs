@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use std::{
     fmt::Display,
-    sync::atomic::AtomicBool,
+        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -59,10 +59,14 @@ pub struct State {
 
     pub package_info_cache: Cache<String>,
     pub search_cache: Cache<Vec<SearchResult>>,
+
+    pub available_backends: Vec<Backend>,
+    pub current_backend_index: AtomicUsize,
 }
 
 impl State {
     pub fn new() -> Self {
+        let backends = Backend::available();
         Self {
             exit: AtomicBool::new(false),
             config: Arc::new(Mutex::new(Config::default())),
@@ -79,6 +83,9 @@ impl State {
 
             package_info_cache: Cache::new(100, Duration::from_secs(60)),
             search_cache: Cache::new(50, Duration::from_secs(30)),
+
+            available_backends: backends,
+            current_backend_index: AtomicUsize::new(0),
         }
     }
 
@@ -164,6 +171,28 @@ impl State {
         }
         self.toasts.lock().unwrap().iter().rfind(|t| t.toast_type != ToastType::Progress).cloned()
     }
+
+    pub fn current_backend(&self) -> Backend {
+        let idx = self.current_backend_index.load(Ordering::Relaxed);
+        self.available_backends[idx].clone()
+    }
+
+    pub fn current_backend_index(&self) -> usize {
+        self.current_backend_index.load(Ordering::Relaxed)
+    }
+
+    pub fn cycle_backend(&self, delta: isize) -> Backend {
+        let count = self.available_backends.len();
+        let _ = self.current_backend_index.fetch_update(
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+            |idx| {
+                let new = (idx as isize + delta).rem_euclid(count as isize) as usize;
+                Some(new)
+            },
+        );
+        self.current_backend()
+    }
 }
 
 #[derive(Clone)]
@@ -215,8 +244,9 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        let backends = Backend::available();
         Self {
-            backend: Backend::default(),
+            backend: backends.first().cloned().unwrap_or(Backend::Homebrew),
             app_version: String::from("0.1.0"),
             app_name: String::from("WhereHouse"),
             system_config: String::default(),

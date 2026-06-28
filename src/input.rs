@@ -86,6 +86,12 @@ impl InputHandler {
             KeyCode::Char('C') if matches!(current_pane, Pane::About(_)) => {
                 self.tx.send(Event::CommandIssued(Command::CheckHealth))?;
             }
+            KeyCode::Char('[') if matches!(current_pane, Pane::About(_)) => {
+                self.tx.send(Event::SwitchBackend(-1))?;
+            }
+            KeyCode::Char(']') if matches!(current_pane, Pane::About(_)) => {
+                self.tx.send(Event::SwitchBackend(1))?;
+            }
             KeyCode::Char('k') if matches!(current_pane, Pane::SearchResults(_)) => {
                 self.select_previous_search_result()?;
             }

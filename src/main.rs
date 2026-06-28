@@ -5,7 +5,7 @@ use logging::initialize_logging;
 use state::Event;
 use task_manager::TaskManager;
 use tracing::info;
-use wherehouse::package_manager::{self, Command};
+use wherehouse::package_manager::{self, Backend, Command, PackageManager};
 
 mod cache;
 mod input;
@@ -23,8 +23,11 @@ fn main() -> color_eyre::Result<()> {
     let state = Arc::new(state::State::new());
     let (event_tx, event_rx) = std::sync::mpsc::channel::<Event>();
 
-    let package_manager = package_manager::detect_package_manager();
-    let mut task_manager = TaskManager::new(state.clone(), package_manager, event_tx.clone());
+    let backends: Vec<Arc<dyn PackageManager>> = Backend::available()
+        .into_iter()
+        .map(Backend::package_manager_from_backend)
+        .collect();
+    let mut task_manager = TaskManager::new(state.clone(), Arc::new(backends), event_tx.clone());
 
     let mut input_handler = input::InputHandler::new(state.clone(), event_tx.clone());
     let _input_thread = thread::spawn(move || input_handler.run());

@@ -78,7 +78,7 @@ impl Backend {
             != 0
     }
 
-    fn available() -> Vec<Backend> {
+    pub fn available() -> Vec<Backend> {
         let mut available_backends = vec![];
         let path = match env::var_os("PATH") {
             Some(path) => path,
