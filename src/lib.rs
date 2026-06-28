@@ -19,30 +19,27 @@ fn levenshtein_distance(s: &str, t: &str) -> usize {
     let s_len = s_vec.len();
     let t_len = t_vec.len();
 
-    let mut dp: Vec<Vec<usize>> = vec![vec![0; s_len + 1]; t_len + 1];
+    let mut dp: Vec<usize> = vec![0; s_len + 1];
 
-    dp[0][0] = 0;
-
-    for i in 1..t_len + 1 {
-        dp[i][0] = dp[i - 1][0] + 1;
-    }
+    dp[0] = 0;
 
     for i in 1..s_len + 1 {
-        dp[0][i] = dp[0][i - 1] + 1;
+        dp[i] = dp[i - 1] + 1;
     }
 
     for i in 1..t_len + 1 {
+        let mut diag = dp[0];
+        dp[0] = i;
         for j in 1..s_len + 1 {
             let mut diag_cost: usize = 0;
             if s_vec[j - 1] != t_vec[i - 1] {
                 diag_cost = 1;
             }
-            dp[i][j] = min(
-                min(dp[i][j - 1] + 1, dp[i - 1][j] + 1),
-                dp[i - 1][j - 1] + diag_cost,
-            );
+            let next_diag = dp[j];
+            dp[j] = min(min(dp[j - 1] + 1, dp[j] + 1), diag + diag_cost);
+            diag = next_diag;
         }
     }
 
-    dp[t_len][s_len]
+    dp[s_len]
 }
