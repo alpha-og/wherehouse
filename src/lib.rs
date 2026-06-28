@@ -2,11 +2,19 @@ use std::cmp::min;
 
 pub mod package_manager;
 
-pub fn fuzz<I>(word_list: I, query: String, threshold: usize) -> Vec<String>
+pub fn fuzz<I>(word_list: I, query: String, threshold: Option<usize>) -> Vec<String>
 where
     I: IntoIterator<Item = String>,
 {
     let query_lowercase = query.to_lowercase();
+    let edit_distance = match threshold {
+        Some(threshold_value) => threshold_value,
+        None => {
+            let query_vec = query.chars().collect::<Vec<_>>();
+            (query_vec.len() + 1) * (25 / 100)
+        }
+    };
+
     word_list
         .into_iter()
         .filter(|word| {
@@ -16,7 +24,7 @@ where
                 return true;
             }
 
-            levenshtein_distance(word, &query_lowercase) < threshold
+            levenshtein_distance(word, &query_lowercase) < edit_distance
         })
         .collect()
 }
