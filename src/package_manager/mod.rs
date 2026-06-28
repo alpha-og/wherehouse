@@ -1,5 +1,6 @@
 pub mod backend;
 pub mod command;
+pub mod dnf;
 pub mod error;
 pub mod homebrew;
 pub mod manager;

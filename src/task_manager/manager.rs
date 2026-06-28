@@ -9,15 +9,15 @@ use crate::state::Event;
 use crate::state::State;
 use super::worker::Worker;
 
-pub struct TaskManager<T> {
+pub struct TaskManager {
     state: Arc<State>,
-    package_manager: Arc<T>,
+    package_manager: Arc<dyn PackageManager>,
     tx: Sender<Event>,
     pool: HashMap<Command, Worker>,
 }
 
-impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
-    pub fn new(state: Arc<State>, package_manager: Arc<T>, tx: Sender<Event>) -> Self {
+impl TaskManager {
+    pub fn new(state: Arc<State>, package_manager: Arc<dyn PackageManager>, tx: Sender<Event>) -> Self {
         Self {
             state,
             package_manager,

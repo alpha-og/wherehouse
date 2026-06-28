@@ -23,7 +23,7 @@ fn main() -> color_eyre::Result<()> {
     let state = Arc::new(state::State::new());
     let (event_tx, event_rx) = std::sync::mpsc::channel::<Event>();
 
-    let package_manager = Arc::new(package_manager::detect_package_manager());
+    let package_manager = package_manager::detect_package_manager();
     let mut task_manager = TaskManager::new(state.clone(), package_manager, event_tx.clone());
 
     let mut input_handler = input::InputHandler::new(state.clone(), event_tx.clone());

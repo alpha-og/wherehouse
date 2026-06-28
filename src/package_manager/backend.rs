@@ -1,8 +1,9 @@
 use std::env;
+use std::sync::Arc;
 
 use super::manager::PackageManager;
 
-use crate::package_manager::homebrew;
+use crate::package_manager::{dnf, homebrew};
 
 #[derive(Debug, Clone)]
 pub enum Backend {
@@ -24,6 +25,7 @@ impl From<&str> for Backend {
     fn from(value: &str) -> Self {
         match value {
             "homebrew" | "brew" => Backend::Homebrew,
+            "dnf" => Backend::Dnf,
             _ => Backend::Homebrew,
         }
     }
@@ -52,9 +54,10 @@ impl Backend {
         }
     }
 
-    pub fn package_manager_from_backend(backend: Backend) -> impl PackageManager {
+    pub fn package_manager_from_backend(backend: Backend) -> Arc<dyn PackageManager> {
         match backend {
-            Backend::Homebrew => homebrew::Homebrew,
+            Backend::Homebrew => Arc::new(homebrew::Homebrew) as Arc<dyn PackageManager>,
+            Backend::Dnf => Arc::new(dnf::Dnf) as Arc<dyn PackageManager>,
             _ => panic!("Unsupported package manager"),
         }
     }

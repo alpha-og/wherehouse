@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     io::{BufRead, BufReader},
     process::{Child, Stdio},
-    sync::mpsc::{Receiver, channel},
+    sync::{Arc, mpsc::{Receiver, channel}},
     thread,
 };
 
@@ -88,7 +88,7 @@ where
         .output()
 }
 
-pub fn detect_package_manager() -> impl PackageManager {
+pub fn detect_package_manager() -> Arc<dyn PackageManager> {
     let backend = Backend::default();
     Backend::package_manager_from_backend(backend)
 }
