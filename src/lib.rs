@@ -6,9 +6,18 @@ pub fn fuzz<I>(word_list: I, query: String, threshold: usize) -> Vec<String>
 where
     I: IntoIterator<Item = String>,
 {
+    let query_lowercase = query.to_lowercase();
     word_list
         .into_iter()
-        .filter(|word| levenshtein_distance(word, &query) < threshold)
+        .filter(|word| {
+            let word_lowercase = word.to_lowercase();
+
+            if word_lowercase.contains(&query_lowercase) {
+                return true;
+            }
+
+            levenshtein_distance(word, &query_lowercase) < threshold
+        })
         .collect()
 }
 
