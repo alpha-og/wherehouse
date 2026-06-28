@@ -1,15 +1,11 @@
+use std::collections::HashMap;
+use std::sync::{Arc, mpsc};
+
 use tracing::info;
-use wherehouse::package_manager::{self, Command, PackageManager, homebrew::Homebrew};
+use wherehouse::package_manager::{Command, PackageManager};
 
 use crate::state::{Pane, State};
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        mpsc::{self, Sender},
-    },
-    thread,
-};
+use super::worker::Worker;
 
 pub struct TaskManager<T> {
     state: Arc<State>,
@@ -96,6 +92,7 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                     },
                     None => return,
                 };
+                info!("Command::UninstallPackage => {package_name}");
                 drop(search);
                 let result = package_manager.uninstall_package(rx_task, package_name);
                 let output = match result {
@@ -133,27 +130,5 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
         }
 
         Ok(())
-    }
-}
-
-struct Worker {
-    tx: Sender<bool>,
-    thread: thread::JoinHandle<()>,
-}
-
-impl Worker {
-    fn new<F>(tx: Sender<bool>, f: F) -> Self
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let thread = thread::spawn(f);
-        Self { tx, thread }
-    }
-
-    pub fn stop(&self) -> color_eyre::Result<()> {
-        match self.tx.send(true) {
-            _ => Ok(()), // Ok(_) => Ok(()),
-                         // Err(e) => bail!("an error occurred while stopping the thread: {e}"),
-        }
     }
 }
