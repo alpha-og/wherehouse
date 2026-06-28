@@ -1,5 +1,10 @@
 use std::sync::mpsc::Receiver;
 
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+};
+
 use super::error::PackageManagerError;
 use super::types::SearchResult;
 
@@ -49,5 +54,26 @@ pub trait PackageManager: Send + Sync + 'static {
 
     fn clean(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {
         Err(PackageManagerError::UnsupportedOperation("clean".into()))
+    }
+
+    fn render_info(&self, raw: &str) -> Vec<Line<'static>> {
+        vec![Line::from(Span::raw(raw.to_string()))]
+    }
+
+    fn render_config(&self, raw: &str, app_name: &str, app_version: &str) -> Vec<Line<'static>> {
+        vec![
+            Line::from(Span::styled(
+                format!("  {app_name} v{app_version}"),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(Span::styled(
+                "  ─────────────────────",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(""),
+            Line::from(Span::raw(raw.to_string())),
+        ]
     }
 }
