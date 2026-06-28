@@ -238,6 +238,17 @@ impl PackageManager for Homebrew {
         let installed_set: std::collections::HashSet<String> =
             installed_names.iter().cloned().collect();
 
+        if pattern.is_empty() {
+            let results: Vec<SearchResult> = installed_names
+                .into_iter()
+                .map(|name| SearchResult {
+                    is_installed: true,
+                    name,
+                })
+                .collect();
+            return Ok((results, None));
+        }
+
         let (remote_names, warning) = match Self::brew_search(pattern.clone()) {
             Ok(output) => {
                 let names: Vec<String> = String::from_utf8(output.stdout)

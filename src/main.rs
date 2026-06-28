@@ -25,9 +25,14 @@ fn main() -> color_eyre::Result<()> {
     let package_manager = Arc::new(package_manager::detect_package_manager());
     let mut task_manager = TaskManager::new(state.clone(), package_manager, event_tx.clone());
 
-    let mut input_handler = input::InputHandler::new(state.clone(), event_tx);
+    let mut input_handler = input::InputHandler::new(state.clone(), event_tx.clone());
     let _input_thread = thread::spawn(move || input_handler.run());
     info!("Input handler thread initiated");
+
+    let e = Event::CommandIssued(Command::FilterPackages);
+    if let Some(cmd) = state::update::update(&state, &e) {
+        task_manager.execute(cmd)?;
+    }
 
     let mut terminal = tui::init()?;
 

@@ -137,9 +137,6 @@ impl State {
 
     pub fn debounce_search(&self) -> bool {
         let mut search = self.search.lock().unwrap();
-        if search.query.is_empty() {
-            return false;
-        }
         if search.query_last_changed > search.query_last_searched
             && search.query_last_changed.elapsed() >= Duration::from_millis(300)
         {

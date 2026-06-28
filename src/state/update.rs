@@ -17,9 +17,6 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             let mut search = state.search.lock().unwrap();
             search.query.pop();
             search.list_state.select(None);
-            if search.query.is_empty() {
-                search.results.clear();
-            }
             search.query_last_changed = std::time::Instant::now();
             None
         }
@@ -76,16 +73,25 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             let mut search = state.search.lock().unwrap();
             search.results = results.clone();
             *search.list_state.offset_mut() = 0;
-            if search.results.is_empty() {
+            let should_fetch_info = if search.results.is_empty() {
                 search.list_state.select(None);
+                false
             } else if search.list_state.selected().is_none() {
                 search.list_state.select(Some(0));
-            }
+                true
+            } else {
+                false
+            };
+            drop(search);
             state.remove_running_command(&Command::FilterPackages);
             if let Some(msg) = warning {
                 state.add_toast(msg.clone(), ToastType::Info);
             }
-            None
+            if should_fetch_info {
+                Some(Command::PackageInfo)
+            } else {
+                None
+            }
         }
         super::Event::CommandOutputReceived {
             cmd: Command::Config,
