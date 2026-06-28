@@ -284,6 +284,85 @@ fn build_cask_lines(c: CaskInfo) -> Vec<Line<'static>> {
     lines
 }
 
+fn render_config_info(raw: &str, backend: &str, app_name: &str, app_version: &str) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    lines.push(Line::from(Span::styled(
+        format!("  {app_name} v{app_version}"),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(Span::styled(
+        "  ─────────────────────",
+        Style::default().fg(Color::DarkGray),
+    )));
+    lines.push(Line::from(""));
+
+    let kv: Vec<(String, String)> = raw
+        .lines()
+        .filter_map(|l| l.split_once(':').map(|(k, v)| (k.trim().to_string(), v.trim().to_string())))
+        .collect();
+
+    lines.push(section_header("Backend"));
+    lines.push(label_line("Name", backend));
+    for (k, v) in &kv {
+        match k.as_str() {
+            "HOMEBREW_VERSION" => lines.push(label_line("Version", v)),
+            "HOMEBREW_PREFIX" => lines.push(label_line("Prefix", v)),
+            "HOMEBREW_CELLAR" => lines.push(label_line("Cellar", v)),
+            "HOMEBREW_REPOSITORY" => lines.push(label_line("Repository", v)),
+            _ => {}
+        }
+    }
+    lines.push(Line::from(""));
+
+    lines.push(section_header("System"));
+    for (k, v) in &kv {
+        match k.as_str() {
+            "BUILD_ARCH" => lines.push(label_line("Architecture", v)),
+            "HOMEBREW_SYSTEM" | "MACOS_VERSION" => {}
+            "HOMEBREW_CC" => lines.push(label_line("C Compiler", v)),
+            "HOMEBREW_CXX" => lines.push(label_line("C++ Compiler", v)),
+            "HOMEBREW_SYSTEM_VERSION" => lines.push(label_line("OS Version", v)),
+            "SHELL" => lines.push(label_line("Shell", v)),
+            _ => {}
+        }
+    }
+    let os_name = kv.iter().find(|(k, _)| k == "HOMEBREW_SYSTEM").map(|(_, v)| v.as_str()).unwrap_or("");
+    let os_ver = kv.iter().find(|(k, _)| k == "HOMEBREW_SYSTEM_VERSION").map(|(_, v)| v.as_str()).unwrap_or("");
+    if !os_name.is_empty() {
+        lines.push(label_line("OS", &format!("{os_name} {os_ver}")));
+    }
+    lines.push(Line::from(""));
+
+    lines.push(section_header("Settings"));
+    for (k, v) in &kv {
+        if k.starts_with("HOMEBREW_") {
+            if matches!(k.as_str(), "HOMEBREW_VERSION" | "HOMEBREW_PREFIX" | "HOMEBREW_CELLAR"
+                | "HOMEBREW_REPOSITORY" | "HOMEBREW_SHELLENV_PREFIX"
+                | "HOMEBREW_CC" | "HOMEBREW_CXX" | "HOMEBREW_SYSTEM"
+                | "HOMEBREW_SYSTEM_VERSION" | "HOMEBREW_BROWSER" | "HOMEBREW_EDITOR")
+            {
+                continue;
+            }
+            let display_key = k.strip_prefix("HOMEBREW_").unwrap_or(k).to_string();
+            if v == "1" {
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(display_key, Style::default().fg(Color::Cyan)),
+                    Span::raw("  "),
+                    Span::styled("✓", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                ]));
+            } else {
+                lines.push(label_line(&display_key, v));
+            }
+        }
+    }
+
+    lines
+}
+
 fn render_info(info: &str) -> Vec<Line<'static>> {
     match serde_json::from_str::<BrewInfoOutput>(info) {
         Ok(output) => {
@@ -360,7 +439,15 @@ impl Widget for ContextPane {
             .style(block_style);
         let inner = block.inner(area);
         let content = match self.state.current_pane() {
-            Pane::About(ref text) => wrap_lines(render_info(text), inner.width as usize),
+            Pane::About(_) => {
+                let cfg = self.state.config();
+                let raw = cfg.system_config.clone();
+                let backend = cfg.backend.name();
+                let name = cfg.app_name.clone();
+                let ver = cfg.app_version.clone();
+                drop(cfg);
+                wrap_lines(render_config_info(&raw, backend, &name, &ver), inner.width as usize)
+            }
             Pane::SearchResults(_) | Pane::SearchInput => {
                 let raw = self.state.search().selected_result_info.clone();
                 wrap_lines(render_info(&raw), inner.width as usize)

@@ -191,6 +191,7 @@ pub struct SearchState {
     pub list_state: ListState,
     pub query_last_changed: Instant,
     pub query_last_searched: Instant,
+    pub search_active: bool,
 }
 
 impl Default for SearchState {
@@ -203,6 +204,7 @@ impl Default for SearchState {
             list_state: ListState::default(),
             query_last_changed: Instant::now(),
             query_last_searched: Instant::now(),
+            search_active: false,
         }
     }
 }
