@@ -23,7 +23,7 @@ impl Widget for AboutPane {
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .title("1")
+            .title("[1] About")
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
 

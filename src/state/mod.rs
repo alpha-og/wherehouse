@@ -47,6 +47,7 @@ pub struct State {
     pub about: Arc<Mutex<String>>,
 
     pub current_pane: Arc<Mutex<Pane>>,
+    pub previous_pane: Arc<Mutex<Pane>>,
     pub search: Arc<Mutex<SearchState>>,
     pub healthcheck_results: Arc<Mutex<String>>,
 
@@ -63,6 +64,7 @@ impl State {
             about: Arc::new(Mutex::new(String::default())),
 
             current_pane: Arc::new(Mutex::new(Pane::About(String::default()))),
+            previous_pane: Arc::new(Mutex::new(Pane::About(String::default()))),
             search: Arc::new(Mutex::new(SearchState::default())),
             healthcheck_results: Arc::new(Mutex::new(String::default())),
 
@@ -94,7 +96,15 @@ impl State {
         (*self.current_pane.lock().unwrap()).clone()
     }
     pub fn set_current_pane(&self, pane: Pane) {
-        *self.current_pane.lock().unwrap() = pane;
+        let mut current = self.current_pane.lock().unwrap();
+        *self.previous_pane.lock().unwrap() = current.clone();
+        *current = pane;
+    }
+
+    pub fn switch_pane(&self, pane: Pane) {
+        let mut current = self.current_pane.lock().unwrap();
+        *self.previous_pane.lock().unwrap() = current.clone();
+        *current = pane;
     }
 
     pub fn search(&self) -> MutexGuard<'_, SearchState> {

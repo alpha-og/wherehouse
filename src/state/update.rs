@@ -43,7 +43,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
         }
         super::Event::PaneFocused(pane) => {
             *state.context_scroll.lock().unwrap() = 0;
-            *state.current_pane.lock().unwrap() = pane.clone();
+            state.switch_pane(pane.clone());
             if matches!(pane, Pane::SearchResults(_)) {
                 let mut search = state.search.lock().unwrap();
                 if search.list_state.selected().is_none() && !search.results.is_empty() {
@@ -86,7 +86,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             };
 
             if search.search_active {
-                *state.current_pane.lock().unwrap() = Pane::SearchResults(String::new());
+                state.switch_pane(Pane::SearchResults(String::new()));
             }
 
             drop(search);
@@ -105,7 +105,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             output,
         } => {
             state.config.lock().unwrap().system_config = output.clone();
-            *state.current_pane.lock().unwrap() = Pane::About(output.clone());
+            state.switch_pane(Pane::About(output.clone()));
             state.add_toast("Config loaded".to_string(), ToastType::Success);
             state.remove_running_command(&Command::Config);
             None
@@ -115,7 +115,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             output,
         } => {
             *state.healthcheck_results.lock().unwrap() = output.clone();
-            *state.current_pane.lock().unwrap() = Pane::About(output.clone());
+            state.switch_pane(Pane::About(output.clone()));
             state.add_toast("Health check complete".to_string(), ToastType::Success);
             state.remove_running_command(&Command::CheckHealth);
             None
@@ -132,7 +132,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             cmd: Command::InstallPackage,
             output,
         } => {
-            *state.current_pane.lock().unwrap() = Pane::SearchResults(output.clone());
+            state.switch_pane(Pane::SearchResults(output.clone()));
             state.add_toast("Install complete".to_string(), ToastType::Success);
             state.remove_running_command(&Command::InstallPackage);
             None
@@ -141,13 +141,13 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             cmd: Command::UninstallPackage,
             output,
         } => {
-            *state.current_pane.lock().unwrap() = Pane::SearchResults(output.clone());
+            state.switch_pane(Pane::SearchResults(output.clone()));
             state.add_toast("Uninstall complete".to_string(), ToastType::Success);
             state.remove_running_command(&Command::UninstallPackage);
             None
         }
         super::Event::CommandOutputReceived { cmd, output } => {
-            *state.current_pane.lock().unwrap() = Pane::SearchResults(output.clone());
+            state.switch_pane(Pane::SearchResults(output.clone()));
             state.remove_running_command(cmd);
             None
         }

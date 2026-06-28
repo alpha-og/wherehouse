@@ -75,6 +75,9 @@ impl InputHandler {
             KeyCode::Char('1') => {
                 self.tx.send(Event::CommandIssued(Command::Config))?;
             }
+            KeyCode::Char('0') => {
+                self.tx.send(Event::PaneFocused(Pane::Context))?;
+            }
             KeyCode::Char('2') => {
                 let info = self.state.search().selected_result_info.clone();
                 self.tx.send(Event::PaneFocused(Pane::SearchResults(info)))?;

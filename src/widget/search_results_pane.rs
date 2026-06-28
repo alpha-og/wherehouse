@@ -23,7 +23,7 @@ impl StatefulWidget for SearchResultsPane {
         };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .title("3")
+            .title("[2] Package")
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
         let search = self.state.search.lock().unwrap();
@@ -50,9 +50,7 @@ impl StatefulWidget for SearchResultsPane {
                 .fg(Color::Black)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default()
-                .bg(Color::DarkGray)
-                .fg(Color::White)
+            Style::default().bg(Color::DarkGray).fg(Color::White)
         };
         let search_results = List::new(search_results)
             .block(block)

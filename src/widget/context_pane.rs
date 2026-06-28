@@ -1,5 +1,5 @@
-use crate::package_manager::manager::PackageManager;
 use crate::package_manager::Backend;
+use crate::package_manager::manager::PackageManager;
 use crate::state::{Pane, State};
 use ratatui::{
     layout::{Constraint, HorizontalAlignment, Layout},
@@ -11,6 +11,14 @@ use ratatui::{
     },
 };
 use std::sync::Arc;
+
+fn pane_name(pane: &Pane) -> &'static str {
+    match pane {
+        Pane::About(_) => "About",
+        Pane::SearchResults(_) => "Package",
+        Pane::Context => "Info",
+    }
+}
 
 fn wrap_lines(lines: Vec<Line<'static>>, max_width: usize) -> Vec<Line<'static>> {
     if max_width < 4 {
@@ -27,11 +35,7 @@ fn wrap_lines(lines: Vec<Line<'static>>, max_width: usize) -> Vec<Line<'static>>
         let indent_len = text.len() - text.trim_start().len();
         let indent = &text[..indent_len];
         let body = &text[indent_len..];
-        let base_style = line
-            .spans
-            .first()
-            .map(|s| s.style)
-            .unwrap_or_default();
+        let base_style = line.spans.first().map(|s| s.style).unwrap_or_default();
         let mut remaining = body;
         let mut first = true;
         while !remaining.is_empty() {
@@ -46,7 +50,10 @@ fn wrap_lines(lines: Vec<Line<'static>>, max_width: usize) -> Vec<Line<'static>>
             }
             let break_at = remaining[..avail].rfind(' ').unwrap_or(avail);
             let chunk = &remaining[..break_at];
-            result.push(Line::from(Span::styled(format!("{indent}{chunk}"), base_style)));
+            result.push(Line::from(Span::styled(
+                format!("{indent}{chunk}"),
+                base_style,
+            )));
             remaining = remaining[break_at..].trim_start();
             first = false;
         }
@@ -63,16 +70,23 @@ impl Widget for ContextPane {
     where
         Self: Sized,
     {
-        let block_style = match self.state.current_pane() {
+        let current_pane = self.state.current_pane();
+        let block_style = match &current_pane {
             Pane::Context => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };
+        let display_pane = match &current_pane {
+            Pane::Context => self.state.previous_pane.lock().unwrap().clone(),
+            other => other.clone(),
+        };
+        let title = format!("[0] {}", pane_name(&display_pane));
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
+            .title(title)
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
         let inner = block.inner(area);
-        let content = match self.state.current_pane() {
+        let content = match &display_pane {
             Pane::About(_) => {
                 let cfg = self.state.config();
                 let raw = cfg.system_config.clone();
