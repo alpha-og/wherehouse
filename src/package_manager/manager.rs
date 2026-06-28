@@ -1,16 +1,15 @@
 use std::sync::mpsc::Receiver;
 
 use super::error::PackageManagerError;
-use super::types::PackageLocality;
+use super::types::SearchResult;
 
 pub trait PackageManager: Send + Sync + 'static {
     fn alias(&self) -> &'static str;
     fn filter_packages(
         &self,
         rx: Receiver<bool>,
-        source: PackageLocality,
         pattern: String,
-    ) -> Result<Vec<String>, PackageManagerError>;
+    ) -> Result<(Vec<SearchResult>, Option<String>), PackageManagerError>;
     fn install_package(
         &self,
         rx: Receiver<bool>,

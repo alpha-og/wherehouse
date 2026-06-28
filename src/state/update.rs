@@ -10,6 +10,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             let mut search = state.search.lock().unwrap();
             search.query.push(*ch);
             search.list_state.select(None);
+            search.query_last_changed = std::time::Instant::now();
             None
         }
         super::Event::DeleteChar => {
@@ -19,10 +20,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             if search.query.is_empty() {
                 search.results.clear();
             }
-            None
-        }
-        super::Event::SearchSourceChanged(source) => {
-            state.search.lock().unwrap().source = *source;
+            search.query_last_changed = std::time::Instant::now();
             None
         }
         super::Event::SelectionMoved(delta) => {
@@ -47,11 +45,14 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             None
         }
         super::Event::CommandIssued(cmd) => Some(cmd.clone()),
-        super::Event::SearchCompleted(results) => {
+        super::Event::SearchCompleted { results, warning: _ } => {
             let mut search = state.search.lock().unwrap();
             search.results = results.clone();
+            *search.list_state.offset_mut() = 0;
             if search.results.is_empty() {
                 search.list_state.select(None);
+            } else if search.list_state.selected().is_none() {
+                search.list_state.select(Some(0));
             }
             None
         }

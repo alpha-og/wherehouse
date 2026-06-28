@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{
     fmt::Display,
     sync::atomic::AtomicBool,
@@ -5,7 +6,7 @@ use std::{
 };
 
 use ratatui::widgets::ListState;
-use wherehouse::package_manager::{Backend, PackageLocality};
+use wherehouse::package_manager::{Backend, SearchResult};
 
 pub mod event;
 pub mod update;
@@ -106,7 +107,7 @@ impl Display for InputMode {
     }
 }
 
-pub type SearchResults = Vec<String>;
+pub type SearchResults = Vec<SearchResult>;
 
 #[derive(Clone)]
 pub struct SearchState {
@@ -115,7 +116,8 @@ pub struct SearchState {
     pub selected_result: usize,
     pub selected_result_info: String,
     pub list_state: ListState,
-    pub source: PackageLocality,
+    pub query_last_changed: Instant,
+    pub query_last_searched: Instant,
 }
 
 impl Default for SearchState {
@@ -126,7 +128,8 @@ impl Default for SearchState {
             selected_result: usize::default(),
             selected_result_info: String::default(),
             list_state: ListState::default(),
-            source: PackageLocality::Local,
+            query_last_changed: Instant::now(),
+            query_last_searched: Instant::now(),
         }
     }
 }

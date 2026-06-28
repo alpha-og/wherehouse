@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 use crate::{fuzz, package_manager::error::PackageManagerError};
 
 use super::{
-    Backend, CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
+    Backend, CommandResult, PackageManager, SearchResult, SpawnCommandResult, command,
     handle_spawned_command, spawn_command,
 };
 
@@ -226,36 +226,49 @@ impl PackageManager for Homebrew {
     fn filter_packages(
         &self,
         _rx: Receiver<bool>,
-        package_locality: super::PackageLocality,
         pattern: String,
-    ) -> Result<Vec<String>, PackageManagerError> {
-        match package_locality {
-            PackageLocality::Local => match Self::brew_list() {
-                Ok(output) => {
-                    let installed_packages = String::from_utf8(output.stdout)
-                        .unwrap()
-                        .split("\n")
-                        .map(|item| item.to_string())
-                        .collect::<Vec<String>>();
-                    Ok(fuzz(installed_packages, pattern, None))
-                }
-                Err(e) => Err(PackageManagerError::from(e)),
-            },
-            PackageLocality::Remote => match Self::brew_search(pattern) {
-                Ok(output) => Ok(String::from_utf8(output.stdout)
+    ) -> Result<(Vec<SearchResult>, Option<String>), PackageManagerError> {
+        let installed_output = Self::brew_list().map_err(PackageManagerError::from)?;
+        let installed_names: Vec<String> = String::from_utf8(installed_output.stdout)
+            .unwrap()
+            .split('\n')
+            .map(String::from)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let installed_set: std::collections::HashSet<String> =
+            installed_names.iter().cloned().collect();
+
+        let (remote_names, warning) = match Self::brew_search(pattern.clone()) {
+            Ok(output) => {
+                let names: Vec<String> = String::from_utf8(output.stdout)
                     .unwrap()
-                    .split("\n")
-                    .filter_map(|item| {
-                        if item.is_empty() {
-                            None
-                        } else {
-                            Some(item.to_string())
-                        }
-                    })
-                    .collect::<Vec<String>>()),
-                Err(e) => Err(PackageManagerError::from(e)),
-            },
-        }
+                    .split('\n')
+                    .map(String::from)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                (names, None)
+            }
+            Err(e) => (Vec::new(), Some(format!("Remote search failed: {e}"))),
+        };
+
+        let mut seen = std::collections::HashSet::new();
+        let all_names: Vec<String> = installed_names
+            .into_iter()
+            .chain(remote_names.into_iter())
+            .filter(|n| seen.insert(n.clone()))
+            .collect();
+
+        let matched = fuzz(all_names, pattern, None);
+
+        let results: Vec<SearchResult> = matched
+            .into_iter()
+            .map(|name| SearchResult {
+                is_installed: installed_set.contains(&name),
+                name,
+            })
+            .collect();
+
+        Ok((results, warning))
     }
 
     fn package_manager_config(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {

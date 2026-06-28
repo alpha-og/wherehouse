@@ -27,11 +27,22 @@ impl StatefulWidget for SearchResultsPane {
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
         let search = self.state.search.lock().unwrap();
-        let search_results_style = Style::default().fg(Color::White);
+        let installed_style = Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD);
+        let not_installed_style = Style::default().fg(Color::White);
         let search_results = search
             .results
             .iter()
-            .map(|item| ListItem::new(item.clone()).style(search_results_style))
+            .map(|result| {
+                let prefix = if result.is_installed { "* " } else { "  " };
+                let style = if result.is_installed {
+                    installed_style
+                } else {
+                    not_installed_style
+                };
+                ListItem::new(format!("{prefix}{}", result.name)).style(style)
+            })
             .collect::<Vec<ListItem>>();
         let selected_style = Style::default()
             .bg(Color::White)
@@ -39,7 +50,7 @@ impl StatefulWidget for SearchResultsPane {
             .add_modifier(Modifier::BOLD);
         let search_results = List::new(search_results)
             .block(block)
-            .style(search_results_style)
+            .style(not_installed_style)
             .highlight_style(selected_style)
             .highlight_symbol(">")
             .highlight_spacing(HighlightSpacing::Always);

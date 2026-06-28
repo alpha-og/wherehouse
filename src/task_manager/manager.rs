@@ -36,21 +36,26 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
             Command::FilterPackages => Worker::new(tx_task, move || {
                 let search = state.search();
                 let query = search.query.clone();
-                let source = search.source;
                 drop(search);
                 info!("Command::FilterPackages => {query}");
-                let result = package_manager.filter_packages(rx_task, source, query);
-                let results = match result {
-                    Ok(results) => results,
-                    Err(_) => Vec::default(),
-                };
-                let _ = tx.send(Event::SearchCompleted(results));
+                let result = package_manager.filter_packages(rx_task, query);
+                match result {
+                    Ok((results, warning)) => {
+                        let _ = tx.send(Event::SearchCompleted { results, warning });
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Event::SearchCompleted {
+                            results: Vec::new(),
+                            warning: Some(format!("Search failed: {e}")),
+                        });
+                    }
+                }
             }),
             Command::PackageInfo => Worker::new(tx_task, move || {
                 let search = state.search();
                 let package_name = match search.list_state.selected() {
                     Some(selected) => match search.results.get(selected) {
-                        Some(result) => result.clone(),
+                        Some(result) => result.name.clone(),
                         None => return,
                     },
                     None => return,
@@ -77,7 +82,7 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                 let search = state.search();
                 let package_name = match search.list_state.selected() {
                     Some(selected) => match search.results.get(selected) {
-                        Some(result) => result.clone(),
+                        Some(result) => result.name.clone(),
                         None => return,
                     },
                     None => return,
@@ -98,7 +103,7 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                 let search = state.search();
                 let package_name = match search.list_state.selected() {
                     Some(selected) => match search.results.get(selected) {
-                        Some(result) => result.clone(),
+                        Some(result) => result.name.clone(),
                         None => return,
                     },
                     None => return,

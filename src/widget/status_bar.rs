@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::state::{Pane, State};
+use crate::state::State;
 
 pub struct StatusBar {
     state: Arc<State>,
@@ -19,14 +19,8 @@ impl Widget for StatusBar {
         Self: Sized,
     {
         let config = self.state.config.lock().unwrap();
-        let search = self.state.search.lock().unwrap();
 
-        let left_text = match self.state.current_pane() {
-            Pane::SearchInput | Pane::SearchResults(_) => {
-                format!(" {} | {} ", self.state.input_mode(), search.source)
-            }
-            _ => format!(" {} ", self.state.input_mode()),
-        };
+        let left_text = format!(" {} ", self.state.input_mode());
         let status_bar_layout =
             Layout::horizontal(vec![Constraint::Percentage(70), Constraint::Fill(1)]).split(area);
         let status_bar_left = Span::styled(

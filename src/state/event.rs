@@ -1,17 +1,19 @@
-use wherehouse::package_manager::{Command, PackageLocality};
+use wherehouse::package_manager::{Command, SearchResult};
 
 use super::Pane;
 
 pub enum Event {
     InsertChar(char),
     DeleteChar,
-    SearchSourceChanged(PackageLocality),
     SelectionMoved(isize),
     InputModeChanged(super::InputMode),
     PaneFocused(Pane),
     Quit,
     CommandIssued(Command),
-    SearchCompleted(Vec<String>),
+    SearchCompleted {
+        results: Vec<SearchResult>,
+        warning: Option<String>,
+    },
     CommandOutputReceived { cmd: Command, output: String },
     CommandFailed { cmd: Command, error: String },
 }

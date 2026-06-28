@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
-use wherehouse::package_manager::{Command, PackageLocality};
+use wherehouse::package_manager::Command;
 
 use crate::state::{Event, InputMode, Pane, State};
 
@@ -78,14 +78,6 @@ impl InputHandler {
                 InputMode::Normal => match key_event.code {
                     KeyCode::Char('i') => {
                         self.tx.send(Event::InputModeChanged(InputMode::Insert))?;
-                    }
-                    KeyCode::Char('l') => {
-                        self.tx.send(Event::SearchSourceChanged(PackageLocality::Local))?;
-                        self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
-                    }
-                    KeyCode::Char('r') => {
-                        self.tx.send(Event::SearchSourceChanged(PackageLocality::Remote))?;
-                        self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
                     }
                     _ => {}
                 },
