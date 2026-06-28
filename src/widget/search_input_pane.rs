@@ -29,11 +29,18 @@ impl Widget for SearchInputPane {
 
         let query_style = Style::default().fg(Color::White);
         let search = self.state.search.lock().unwrap();
-        let query = Paragraph::new(search.query.clone())
-            .left_aligned()
-            .block(block)
-            .style(query_style);
-        query.render(area, buf);
+        let display = if search.query.is_empty() {
+            Paragraph::new("Search packages...")
+                .left_aligned()
+                .block(block)
+                .style(Style::default().fg(Color::DarkGray))
+        } else {
+            Paragraph::new(search.query.clone())
+                .left_aligned()
+                .block(block)
+                .style(query_style)
+        };
+        display.render(area, buf);
     }
 }
 

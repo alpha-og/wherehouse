@@ -26,7 +26,9 @@ impl Widget for ContextPane {
             .style(block_style);
         let context = match self.state.current_pane() {
             Pane::About(context) => context,
-            Pane::SearchResults(context) => context,
+            Pane::SearchResults(_) | Pane::SearchInput => {
+                self.state.search().selected_result_info.clone()
+            }
             _ => String::default(),
         };
         let context_style = Style::default().fg(Color::White);

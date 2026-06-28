@@ -30,6 +30,13 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             } else {
                 search.list_state.select_next();
             }
+            let len = search.results.len();
+            if let Some(sel) = search.list_state.selected() {
+                let clamped = sel.clamp(0, len.saturating_sub(1));
+                if clamped != sel {
+                    search.list_state.select(Some(clamped));
+                }
+            }
             None
         }
         super::Event::InputModeChanged(mode) => {
@@ -38,6 +45,12 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
         }
         super::Event::PaneFocused(pane) => {
             *state.current_pane.lock().unwrap() = pane.clone();
+            if matches!(pane, Pane::SearchResults(_)) {
+                let mut search = state.search.lock().unwrap();
+                if search.list_state.selected().is_none() && !search.results.is_empty() {
+                    search.list_state.select(Some(0));
+                }
+            }
             None
         }
         super::Event::Quit => {

@@ -44,10 +44,17 @@ impl StatefulWidget for SearchResultsPane {
                 ListItem::new(format!("{prefix}{}", result.name)).style(style)
             })
             .collect::<Vec<ListItem>>();
-        let selected_style = Style::default()
-            .bg(Color::White)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD);
+        let is_focused = matches!(self.state.current_pane(), Pane::SearchResults(_));
+        let selected_style = if is_focused {
+            Style::default()
+                .bg(Color::White)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .bg(Color::DarkGray)
+                .fg(Color::White)
+        };
         let search_results = List::new(search_results)
             .block(block)
             .style(not_installed_style)
