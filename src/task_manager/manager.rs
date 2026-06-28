@@ -138,6 +138,48 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                     output,
                 });
             }),
+            Command::UpdatePackage => Worker::new(tx_task, move || {
+                let search = state.search();
+                let package_name = match search.list_state.selected() {
+                    Some(selected) => match search.results.get(selected) {
+                        Some(result) => result.name.clone(),
+                        None => return,
+                    },
+                    None => return,
+                };
+                info!("Command::UpdatePackage => {package_name}");
+                drop(search);
+                let result = package_manager.update_package(rx_task, package_name);
+                let output = match result {
+                    Ok(output) => output,
+                    Err(_) => String::default(),
+                };
+                let _ = tx.send(Event::CommandOutputReceived {
+                    cmd: Command::UpdatePackage,
+                    output,
+                });
+            }),
+            Command::UpdateAll => Worker::new(tx_task, move || {
+                info!("Command::UpdateAll");
+                let result = package_manager.update_all_packages(rx_task);
+                let output = match result {
+                    Ok(output) => output,
+                    Err(_) => String::default(),
+                };
+                let _ = tx.send(Event::CommandOutputReceived {
+                    cmd: Command::UpdateAll,
+                    output,
+                });
+            }),
+            Command::CheckOutdated => Worker::new(tx_task, move || {
+                info!("Command::CheckOutdated");
+                let result = package_manager.check_outdated(rx_task);
+                let outdated = match result {
+                    Ok(names) => names,
+                    Err(_) => Vec::new(),
+                };
+                let _ = tx.send(Event::OutdatedCheckCompleted { outdated });
+            }),
             Command::Config => Worker::new(tx_task, move || {
                 let result = package_manager.package_manager_config(rx_task);
                 let output = match result {

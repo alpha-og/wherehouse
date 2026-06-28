@@ -4,21 +4,21 @@ use wherehouse::package_manager::Command;
 
 use super::{Pane, State, ToastType};
 
-pub fn update(state: &State, event: &super::Event) -> Option<Command> {
+pub fn update(state: &State, event: &super::Event) -> Vec<Command> {
     match event {
         super::Event::InsertChar(ch) => {
             let mut search = state.search.lock().unwrap();
             search.query.push(*ch);
             search.list_state.select(None);
             search.query_last_changed = std::time::Instant::now();
-            None
+            vec![]
         }
         super::Event::DeleteChar => {
             let mut search = state.search.lock().unwrap();
             search.query.pop();
             search.list_state.select(None);
             search.query_last_changed = std::time::Instant::now();
-            None
+            vec![]
         }
         super::Event::SelectionMoved(delta) => {
             let mut search = state.search.lock().unwrap();
@@ -34,12 +34,12 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                     search.list_state.select(Some(clamped));
                 }
             }
-            None
+            vec![]
         }
         super::Event::ContextScroll(delta) => {
             let mut scroll = state.context_scroll.lock().unwrap();
             *scroll = scroll.saturating_add_signed(*delta);
-            None
+            vec![]
         }
         super::Event::PaneFocused(pane) => {
             *state.context_scroll.lock().unwrap() = 0;
@@ -50,11 +50,11 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                     search.list_state.select(Some(0));
                 }
             }
-            None
+            vec![]
         }
         super::Event::Quit => {
             state.exit.store(true, Ordering::Relaxed);
-            None
+            vec![]
         }
         super::Event::CommandIssued(cmd) => {
             match cmd {
@@ -69,13 +69,13 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                     if let Some(ref key) = key {
                         if let Some(cached) = state.package_info_cache.get(key) {
                             state.search.lock().unwrap().selected_result_info = cached;
-                            return None;
+                            return vec![];
                         }
                     }
                     state.remove_running_command(cmd);
                     state.add_toast("Loading info...".to_string(), ToastType::Progress);
                     state.add_running_command(cmd.clone());
-                    Some(cmd.clone())
+                    vec![cmd.clone()]
                 }
                 Command::FilterPackages => {
                     let backend = state.config.lock().unwrap().backend.alias().to_string();
@@ -84,16 +84,19 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                     if let Some(cached) = state.search_cache.get(&key) {
                         let mut search = state.search.lock().unwrap();
                         search.results = cached;
+                        if search.updatable_only {
+                            search.all_results = search.results.clone();
+                        }
                         *search.list_state.offset_mut() = 0;
                         if search.list_state.selected().is_none() && !search.results.is_empty() {
                             search.list_state.select(Some(0));
                         }
-                        return None;
+                        return vec![];
                     }
                     state.remove_running_command(cmd);
                     state.add_toast("Searching...".to_string(), ToastType::Progress);
                     state.add_running_command(cmd.clone());
-                    Some(cmd.clone())
+                    vec![cmd.clone()]
                 }
                 _ => {
                     let progress_msg = match cmd {
@@ -101,12 +104,14 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                         Command::UninstallPackage => "Uninstalling...",
                         Command::CheckHealth => "Checking health...",
                         Command::Config => "Loading config...",
+                        Command::UpdatePackage => "Updating...",
+                        Command::UpdateAll => "Updating all...",
                         _ => "Running...",
                     };
                     state.remove_running_command(cmd);
                     state.add_toast(progress_msg.to_string(), ToastType::Progress);
                     state.add_running_command(cmd.clone());
-                    Some(cmd.clone())
+                    vec![cmd.clone()]
                 }
             }
         }
@@ -116,6 +121,11 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             let mut search = state.search.lock().unwrap();
             search.results = results.clone();
             *search.list_state.offset_mut() = 0;
+
+            if search.updatable_only {
+                search.all_results = search.results.clone();
+            }
+
             let should_fetch_info = if search.results.is_empty() {
                 search.list_state.select(None);
                 false
@@ -135,19 +145,41 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             if let Some(msg) = warning {
                 state.add_toast(msg.clone(), ToastType::Info);
             }
+
+            let mut cmds = vec![Command::CheckOutdated];
             if should_fetch_info {
                 let first_name = results.first().map(|r| r.name.clone());
                 if let Some(ref name) = first_name {
                     let key = format!("{backend}/info:{name}");
                     if let Some(cached) = state.package_info_cache.get(&key) {
                         state.search.lock().unwrap().selected_result_info = cached;
-                        return None;
+                        return cmds;
                     }
                 }
-                Some(Command::PackageInfo)
-            } else {
-                None
+                cmds.push(Command::PackageInfo);
             }
+            cmds
+        }
+        super::Event::OutdatedCheckCompleted { outdated } => {
+            let outdated_set: std::collections::HashSet<&str> =
+                outdated.iter().map(String::as_str).collect();
+            let mut search = state.search.lock().unwrap();
+            for result in &mut search.results {
+                if result.is_installed && outdated_set.contains(result.name.as_str()) {
+                    result.update_available = true;
+                }
+            }
+            for result in &mut search.all_results {
+                if result.is_installed && outdated_set.contains(result.name.as_str()) {
+                    result.update_available = true;
+                }
+            }
+            if search.updatable_only {
+                search.results = search.all_results.clone();
+                search.results.retain(|r| r.update_available);
+            }
+            state.remove_running_command(&Command::CheckOutdated);
+            vec![]
         }
         super::Event::CommandOutputReceived {
             cmd: Command::Config,
@@ -157,7 +189,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             state.switch_pane(Pane::About(output.clone()));
             state.add_toast("Config loaded".to_string(), ToastType::Success);
             state.remove_running_command(&Command::Config);
-            None
+            vec![]
         }
         super::Event::CommandOutputReceived {
             cmd: Command::CheckHealth,
@@ -167,7 +199,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             state.switch_pane(Pane::About(output.clone()));
             state.add_toast("Health check complete".to_string(), ToastType::Success);
             state.remove_running_command(&Command::CheckHealth);
-            None
+            vec![]
         }
         super::Event::CommandOutputReceived {
             cmd: Command::PackageInfo,
@@ -185,7 +217,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             }
             state.search.lock().unwrap().selected_result_info = output.clone();
             state.remove_running_command(&Command::PackageInfo);
-            None
+            vec![]
         }
         super::Event::CommandOutputReceived {
             cmd: Command::InstallPackage,
@@ -195,7 +227,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             state.add_toast("Install complete".to_string(), ToastType::Success);
             invalidate_caches(state);
             state.remove_running_command(&Command::InstallPackage);
-            None
+            vec![Command::FilterPackages]
         }
         super::Event::CommandOutputReceived {
             cmd: Command::UninstallPackage,
@@ -205,27 +237,61 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             state.add_toast("Uninstall complete".to_string(), ToastType::Success);
             invalidate_caches(state);
             state.remove_running_command(&Command::UninstallPackage);
-            None
+            vec![Command::FilterPackages]
         }
         super::Event::CommandOutputReceived { cmd, output } => {
+            let should_refresh = matches!(cmd, Command::UpdatePackage | Command::UpdateAll);
             match cmd {
-                Command::UpdatePackage | Command::Clean => invalidate_caches(state),
+                Command::UpdatePackage | Command::Clean => {
+                    state.add_toast("Update complete".to_string(), ToastType::Success);
+                    invalidate_caches(state);
+                }
+                Command::UpdateAll => {
+                    state.add_toast("All packages updated".to_string(), ToastType::Success);
+                    invalidate_caches(state);
+                }
                 _ => {}
             }
             state.switch_pane(Pane::SearchResults(output.clone()));
             state.remove_running_command(cmd);
-            None
+            if should_refresh {
+                vec![Command::FilterPackages]
+            } else {
+                vec![]
+            }
+        }
+        super::Event::ToggleUpdatableFilter => {
+            let mut search = state.search.lock().unwrap();
+            search.updatable_only = !search.updatable_only;
+            if search.updatable_only {
+                search.all_results = search.results.clone();
+                search.results.retain(|r| r.update_available);
+                let len = search.results.len();
+                if let Some(sel) = search.list_state.selected() {
+                    if sel >= len {
+                        search.list_state.select(len.checked_sub(1));
+                    }
+                }
+            } else if !search.all_results.is_empty() {
+                search.results = search.all_results.clone();
+                search.all_results.clear();
+            }
+            vec![]
         }
         super::Event::CommandFailed { cmd, error } => {
+            if cmd == &Command::CheckOutdated {
+                state.remove_running_command(cmd);
+                return vec![];
+            }
             if !error.contains("superseded") {
                 state.add_toast(format!("{} failed: {}", cmd_name(cmd), error), ToastType::Error);
                 state.remove_running_command(cmd);
             }
-            None
+            vec![]
         }
         super::Event::ShowToast { message, toast_type } => {
             state.add_toast(message.clone(), *toast_type);
-            None
+            vec![]
         }
     }
 }
@@ -245,7 +311,9 @@ fn cmd_name(cmd: &Command) -> &'static str {
         Command::FilterPackages => "Search",
         Command::PackageInfo => "Package info",
         Command::UpdatePackage => "Update",
+        Command::UpdateAll => "Update all",
         Command::Clean => "Clean",
         Command::GeneralInfo => "Info",
+        Command::CheckOutdated => "Check outdated",
     }
 }

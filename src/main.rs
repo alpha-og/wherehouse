@@ -37,14 +37,14 @@ fn main() -> color_eyre::Result<()> {
 
     loop {
         while let Ok(event) = event_rx.try_recv() {
-            if let Some(cmd) = state::update::update(&state, &event) {
+            for cmd in state::update::update(&state, &event) {
                 task_manager.execute(cmd)?;
             }
         }
 
         if state.debounce_search() {
             let e = Event::CommandIssued(Command::FilterPackages);
-            if let Some(cmd) = state::update::update(&state, &e) {
+            for cmd in state::update::update(&state, &e) {
                 task_manager.execute(cmd)?;
             }
         }

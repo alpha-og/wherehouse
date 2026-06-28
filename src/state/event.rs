@@ -17,5 +17,7 @@ pub enum Event {
     CommandOutputReceived { cmd: Command, output: String },
     CommandFailed { cmd: Command, error: String },
     ShowToast { message: String, toast_type: ToastType },
+    ToggleUpdatableFilter,
     ContextScroll(isize),
+    OutdatedCheckCompleted { outdated: Vec<String> },
 }

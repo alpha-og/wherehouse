@@ -179,12 +179,14 @@ pub type SearchResults = Vec<SearchResult>;
 pub struct SearchState {
     pub query: String,
     pub results: SearchResults,
+    pub all_results: SearchResults,
     pub selected_result: usize,
     pub selected_result_info: String,
     pub list_state: ListState,
     pub query_last_changed: Instant,
     pub query_last_searched: Instant,
     pub search_active: bool,
+    pub updatable_only: bool,
 }
 
 impl Default for SearchState {
@@ -192,12 +194,14 @@ impl Default for SearchState {
         Self {
             query: String::default(),
             results: SearchResults::default(),
+            all_results: SearchResults::default(),
             selected_result: usize::default(),
             selected_result_info: String::default(),
             list_state: ListState::default(),
             query_last_changed: Instant::now(),
             query_last_searched: Instant::now(),
             search_active: false,
+            updatable_only: false,
         }
     }
 }
