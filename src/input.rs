@@ -98,6 +98,15 @@ impl InputHandler {
             KeyCode::Char('X') if matches!(current_pane, Pane::SearchResults(_)) => {
                 self.tx.send(Event::CommandIssued(Command::UninstallPackage))?;
             }
+            KeyCode::Char('u') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.tx.send(Event::CommandIssued(Command::UpdatePackage))?;
+            }
+            KeyCode::Char('U') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.tx.send(Event::CommandIssued(Command::UpdateAll))?;
+            }
+            KeyCode::Char('f') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.tx.send(Event::ToggleUpdatableFilter)?;
+            }
             _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
                 KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
                 KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
