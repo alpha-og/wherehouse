@@ -2,6 +2,7 @@ use crate::state::{Pane, State};
 use ratatui::{
     layout::HorizontalAlignment,
     style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, BorderType, HighlightSpacing, List, ListItem, ListState, StatefulWidget},
 };
 use std::sync::Arc;
@@ -21,26 +22,42 @@ impl StatefulWidget for SearchResultsPane {
             Pane::SearchResults(_) => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             _ => Style::default().fg(Color::LightBlue),
         };
+        let search = self.state.search.lock().unwrap();
+        let updatable_count = search.results.iter().filter(|r| r.update_available).count();
+        let title = if search.updatable_only {
+            format!("[2] Package (updates only)")
+        } else if updatable_count > 0 {
+            format!("[2] Package ({updatable_count} updates)")
+        } else {
+            "[2] Package".to_string()
+        };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .title("[2] Package")
+            .title(title)
             .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
-        let search = self.state.search.lock().unwrap();
         let installed_style = Style::default()
             .fg(Color::Green)
             .add_modifier(Modifier::BOLD);
         let not_installed_style = Style::default().fg(Color::DarkGray);
+        let update_style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
         let search_results = search
             .results
             .iter()
             .map(|result| {
                 let (prefix, style) = if result.is_installed {
-                    ("● ", installed_style)
+                    (" ●", installed_style)
                 } else {
-                    ("○ ", not_installed_style)
+                    (" ○", not_installed_style)
                 };
-                ListItem::new(format!("{prefix}{}", result.name)).style(style)
+                let mut spans = vec![
+                    Span::styled(prefix, style),
+                    Span::raw(format!(" {}", result.name)),
+                ];
+                if result.update_available {
+                    spans.push(Span::styled(" ↑", update_style));
+                }
+                ListItem::new(Line::from(spans)).style(style)
             })
             .collect::<Vec<ListItem>>();
         let is_focused = matches!(self.state.current_pane(), Pane::SearchResults(_));
