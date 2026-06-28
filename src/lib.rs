@@ -13,29 +13,20 @@ where
 }
 
 fn levenshtein_distance(s: &str, t: &str) -> usize {
-    if s.is_empty() {
-        return t.len();
-    } else if t.is_empty() {
-        return s.len();
-    }
+    let s_last = match s.chars().nth(s.len() - 1) {
+        Some(last) => last,
+        None => return t.len(),
+    };
+    let t_last = match t.chars().nth(t.len() - 1) {
+        Some(last) => last,
+        None => return s.len(),
+    };
+
     let mut cost = 1;
-
-    if s.chars().nth(s.len() - 1) == t.chars().nth(t.len() - 1) {
-        cost = 0
+    if s_last == t_last {
+        cost = 0;
     }
 
-    // let s_last = match s.chars().nth(s.len() - 1) {
-    //     Some(last) => last,
-    //     None => return t.len(),
-    // };
-    // let t_last = match t.chars().nth(t.len() - 1) {
-    //     Some(last) => last,
-    //     None => return s.len(),
-    // };
-    //
-    // if s_last == t_last {
-    //     cost = 0;
-    // }
     min(
         min(
             levenshtein_distance(&s[..s.len() - 1], t) + 1,
