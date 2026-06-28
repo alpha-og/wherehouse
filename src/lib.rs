@@ -13,25 +13,36 @@ where
 }
 
 fn levenshtein_distance(s: &str, t: &str) -> usize {
-    let s_last = match s.chars().nth(s.len() - 1) {
-        Some(last) => last,
-        None => return t.len(),
-    };
-    let t_last = match t.chars().nth(t.len() - 1) {
-        Some(last) => last,
-        None => return s.len(),
-    };
+    let s_vec: Vec<_> = s.chars().collect();
+    let t_vec: Vec<_> = t.chars().collect();
 
-    let mut cost = 1;
-    if s_last == t_last {
-        cost = 0;
+    let s_len = s_vec.len();
+    let t_len = t_vec.len();
+
+    let mut dp: Vec<Vec<usize>> = vec![vec![0; s_len + 1]; t_len + 1];
+
+    dp[0][0] = 0;
+
+    for i in 1..t_len + 1 {
+        dp[i][0] = dp[i - 1][0] + 1;
     }
 
-    min(
-        min(
-            levenshtein_distance(&s[..s.len() - 1], t) + 1,
-            levenshtein_distance(s, &t[..t.len() - 1]) + 1,
-        ),
-        levenshtein_distance(&s[..s.len() - 1], &t[..t.len() - 1]) + cost,
-    )
+    for i in 1..s_len + 1 {
+        dp[0][i] = dp[0][i - 1] + 1;
+    }
+
+    for i in 1..t_len + 1 {
+        for j in 1..s_len + 1 {
+            let mut diag_cost: usize = 0;
+            if s_vec[j - 1] != t_vec[i - 1] {
+                diag_cost = 1;
+            }
+            dp[i][j] = min(
+                min(dp[i][j - 1] + 1, dp[i - 1][j] + 1),
+                dp[i - 1][j - 1] + diag_cost,
+            );
+        }
+    }
+
+    dp[t_len][s_len]
 }
