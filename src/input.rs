@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind, KeyModifiers};
 use wherehouse::package_manager::Command;
 
-use crate::state::{Event, InputMode, Pane, State};
+use crate::state::{Event, Pane, State};
 
 const PACKAGE_INFO_DEBOUNCE: Duration = Duration::from_millis(150);
 
@@ -43,98 +43,70 @@ impl InputHandler {
         Ok(())
     }
     fn handle_key_press(&mut self, key_event: event::KeyEvent) -> color_eyre::Result<()> {
-        let state = self.state.clone();
-        let input_mode = state.input_mode();
-        if let InputMode::Normal = input_mode {
-            match key_event.code {
-                KeyCode::Char('1') => {
-                    self.tx.send(Event::CommandIssued(Command::Config))?;
-                }
-                KeyCode::Char('2') => {
-                    self.tx.send(Event::PaneFocused(Pane::SearchInput))?;
-                }
-                KeyCode::Char('3') => {
-                    let info = state.search().selected_result_info.clone();
-                    self.tx
-                        .send(Event::PaneFocused(Pane::SearchResults(info)))?;
-                }
-                KeyCode::Char('q') => self.quit()?,
-                _ => {}
-            }
-        }
+        let current_pane = self.state.current_pane();
+        let search_active = self.state.search.lock().unwrap().search_active;
 
-        match state.current_pane() {
-            Pane::About(_) => {
-                if let InputMode::Normal = input_mode {
-                    match key_event.code {
-                        KeyCode::Char('C') => {
-                            self.tx.send(Event::CommandIssued(Command::CheckHealth))?;
-                        }
-                        _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
-                            KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
-                            KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
-                            _ => {}
-                        },
-                        _ => {}
-                    }
+        match key_event.code {
+            KeyCode::Char('/') => {
+                let mut search = self.state.search.lock().unwrap();
+                search.search_active = true;
+                search.query.clear();
+                search.query_last_changed = std::time::Instant::now();
+            }
+            KeyCode::Enter if search_active => {
+                let mut search = self.state.search.lock().unwrap();
+                search.search_active = false;
+            }
+            KeyCode::Esc => {
+                let mut search = self.state.search.lock().unwrap();
+                if search.search_active {
+                    search.search_active = false;
+                } else if matches!(current_pane, Pane::SearchResults(_)) && !search.query.is_empty() {
+                    search.query.clear();
+                    search.query_last_changed = std::time::Instant::now();
                 }
             }
-            Pane::SearchInput => match input_mode {
-                InputMode::Normal => match key_event.code {
-                    KeyCode::Char('i') => {
-                        self.tx.send(Event::InputModeChanged(InputMode::Insert))?;
-                    }
-                    _ => {}
-                },
-                InputMode::Insert => match key_event.code {
-                    KeyCode::Char(ch) => self.append_search_query(ch)?,
-                    KeyCode::Backspace => {
-                        self.pop_search_query()?;
-                    }
-                    KeyCode::Esc => {
-                        self.tx.send(Event::InputModeChanged(InputMode::Normal))?;
-                    }
-                    _ => {}
-                },
-            },
-            Pane::SearchResults(_) => match input_mode {
-                InputMode::Normal => match key_event.code {
-                    KeyCode::Char('q') => self.quit()?,
-                    KeyCode::Char('k') => self.select_previous_search_result()?,
-                    KeyCode::Char('j') => self.select_next_search_result()?,
-                    KeyCode::Char('I') => {
-                        self.tx.send(Event::CommandIssued(Command::InstallPackage))?;
-                    }
-                    KeyCode::Char('X') => {
-                        self.tx
-                            .send(Event::CommandIssued(Command::UninstallPackage))?;
-                    }
-                    _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
-                        KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
-                        KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
-                        _ => {}
-                    },
-                    _ => {}
-                },
+            KeyCode::Char(ch) if search_active => {
+                self.tx.send(Event::InsertChar(ch))?;
+            }
+            KeyCode::Backspace if search_active => {
+                self.tx.send(Event::DeleteChar)?;
+            }
+            KeyCode::Char('1') => {
+                self.tx.send(Event::CommandIssued(Command::Config))?;
+            }
+            KeyCode::Char('2') => {
+                let info = self.state.search().selected_result_info.clone();
+                self.tx.send(Event::PaneFocused(Pane::SearchResults(info)))?;
+            }
+            KeyCode::Char('q') => self.quit()?,
+            KeyCode::Char('C') if matches!(current_pane, Pane::About(_)) => {
+                self.tx.send(Event::CommandIssued(Command::CheckHealth))?;
+            }
+            KeyCode::Char('k') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.select_previous_search_result()?;
+            }
+            KeyCode::Char('j') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.select_next_search_result()?;
+            }
+            KeyCode::Char('I') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.tx.send(Event::CommandIssued(Command::InstallPackage))?;
+            }
+            KeyCode::Char('X') if matches!(current_pane, Pane::SearchResults(_)) => {
+                self.tx.send(Event::CommandIssued(Command::UninstallPackage))?;
+            }
+            _ if key_event.modifiers == KeyModifiers::CONTROL => match key_event.code {
+                KeyCode::Char('d') => self.tx.send(Event::ContextScroll(8))?,
+                KeyCode::Char('u') => self.tx.send(Event::ContextScroll(-8))?,
                 _ => {}
             },
             _ => {}
-        };
+        }
         Ok(())
     }
 
     fn quit(&self) -> color_eyre::Result<()> {
         self.tx.send(Event::Quit)?;
-        Ok(())
-    }
-
-    fn append_search_query(&mut self, ch: char) -> color_eyre::Result<()> {
-        self.tx.send(Event::InsertChar(ch))?;
-        Ok(())
-    }
-
-    fn pop_search_query(&mut self) -> color_eyre::Result<()> {
-        self.tx.send(Event::DeleteChar)?;
         Ok(())
     }
 

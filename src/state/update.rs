@@ -36,10 +36,6 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             }
             None
         }
-        super::Event::InputModeChanged(mode) => {
-            *state.input_mode.lock().unwrap() = *mode;
-            None
-        }
         super::Event::ContextScroll(delta) => {
             let mut scroll = state.context_scroll.lock().unwrap();
             *scroll = scroll.saturating_add_signed(*delta);
@@ -49,7 +45,6 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             *state.context_scroll.lock().unwrap() = 0;
             *state.current_pane.lock().unwrap() = pane.clone();
             if matches!(pane, Pane::SearchResults(_)) {
-                *state.input_mode.lock().unwrap() = super::InputMode::Normal;
                 let mut search = state.search.lock().unwrap();
                 if search.list_state.selected().is_none() && !search.results.is_empty() {
                     search.list_state.select(Some(0));
@@ -89,6 +84,11 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             } else {
                 false
             };
+
+            if search.search_active {
+                *state.current_pane.lock().unwrap() = Pane::SearchResults(String::new());
+            }
+
             drop(search);
             state.remove_running_command(&Command::FilterPackages);
             if let Some(msg) = warning {

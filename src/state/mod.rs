@@ -47,7 +47,6 @@ pub struct State {
     pub about: Arc<Mutex<String>>,
 
     pub current_pane: Arc<Mutex<Pane>>,
-    pub input_mode: Arc<Mutex<InputMode>>,
     pub search: Arc<Mutex<SearchState>>,
     pub healthcheck_results: Arc<Mutex<String>>,
 
@@ -63,8 +62,7 @@ impl State {
             config: Arc::new(Mutex::new(Config::default())),
             about: Arc::new(Mutex::new(String::default())),
 
-            current_pane: Arc::new(Mutex::new(Pane::SearchInput)),
-            input_mode: Arc::new(Mutex::new(InputMode::Insert)),
+            current_pane: Arc::new(Mutex::new(Pane::About(String::default()))),
             search: Arc::new(Mutex::new(SearchState::default())),
             healthcheck_results: Arc::new(Mutex::new(String::default())),
 
@@ -97,13 +95,6 @@ impl State {
     }
     pub fn set_current_pane(&self, pane: Pane) {
         *self.current_pane.lock().unwrap() = pane;
-    }
-
-    pub fn input_mode(&self) -> InputMode {
-        *self.input_mode.lock().unwrap()
-    }
-    pub fn set_input_mode(&self, input_mode: InputMode) {
-        *self.input_mode.lock().unwrap() = input_mode;
     }
 
     pub fn search(&self) -> MutexGuard<'_, SearchState> {
@@ -159,25 +150,9 @@ impl State {
 
 #[derive(Clone)]
 pub enum Pane {
-    SearchInput,
     SearchResults(String),
     About(String),
     Context,
-}
-
-#[derive(Clone, Copy)]
-pub enum InputMode {
-    Normal,
-    Insert,
-}
-
-impl Display for InputMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Normal => write!(f, "NORMAL"),
-            Self::Insert => write!(f, "INSERT"),
-        }
-    }
 }
 
 pub type SearchResults = Vec<SearchResult>;

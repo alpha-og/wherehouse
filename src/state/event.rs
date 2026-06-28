@@ -6,7 +6,6 @@ pub enum Event {
     InsertChar(char),
     DeleteChar,
     SelectionMoved(isize),
-    InputModeChanged(super::InputMode),
     PaneFocused(Pane),
     Quit,
     CommandIssued(Command),

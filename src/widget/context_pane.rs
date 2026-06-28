@@ -448,7 +448,7 @@ impl Widget for ContextPane {
                 drop(cfg);
                 wrap_lines(render_config_info(&raw, backend, &name, &ver), inner.width as usize)
             }
-            Pane::SearchResults(_) | Pane::SearchInput => {
+            Pane::SearchResults(_) => {
                 let raw = self.state.search().selected_result_info.clone();
                 wrap_lines(render_info(&raw), inner.width as usize)
             }

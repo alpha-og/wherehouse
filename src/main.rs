@@ -29,10 +29,8 @@ fn main() -> color_eyre::Result<()> {
     let _input_thread = thread::spawn(move || input_handler.run());
     info!("Input handler thread initiated");
 
-    let e = Event::CommandIssued(Command::FilterPackages);
-    if let Some(cmd) = state::update::update(&state, &e) {
-        task_manager.execute(cmd)?;
-    }
+    task_manager.execute(Command::Config)?;
+    task_manager.execute(Command::FilterPackages)?;
 
     let mut terminal = tui::init()?;
 
