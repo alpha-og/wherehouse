@@ -4,6 +4,7 @@ pub mod dnf;
 pub mod error;
 pub mod homebrew;
 pub mod manager;
+pub mod pnpm;
 pub mod types;
 pub mod util;
 

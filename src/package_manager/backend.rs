@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::manager::PackageManager;
 
-use crate::package_manager::{dnf, homebrew};
+use crate::package_manager::{dnf, homebrew, pnpm};
 
 #[derive(Debug, Clone)]
 pub enum Backend {
@@ -13,6 +13,7 @@ pub enum Backend {
     Dnf,
     Apt,
     Winget,
+    Pnpm,
 }
 
 impl Default for Backend {
@@ -26,6 +27,7 @@ impl From<&str> for Backend {
         match value {
             "homebrew" | "brew" => Backend::Homebrew,
             "dnf" => Backend::Dnf,
+            "pnpm" => Backend::Pnpm,
             _ => Backend::Homebrew,
         }
     }
@@ -38,6 +40,7 @@ impl Backend {
             Backend::Pacman => "pacman",
             Backend::Yay => "yay",
             Backend::Dnf => "dnf",
+            Backend::Pnpm => "pnpm",
             Backend::Apt => "apt",
             Backend::Winget => "winget",
         }
@@ -49,6 +52,7 @@ impl Backend {
             Backend::Pacman => "Pacman",
             Backend::Yay => "Yet Another Yogurt",
             Backend::Dnf => "Dandified YUM",
+            Backend::Pnpm => "pnpm",
             Backend::Apt => "Advanced Package Tool",
             Backend::Winget => "Windows Package Manager",
         }
@@ -58,6 +62,7 @@ impl Backend {
         match backend {
             Backend::Homebrew => Arc::new(homebrew::Homebrew) as Arc<dyn PackageManager>,
             Backend::Dnf => Arc::new(dnf::Dnf) as Arc<dyn PackageManager>,
+            Backend::Pnpm => Arc::new(pnpm::Pnpm) as Arc<dyn PackageManager>,
             _ => panic!("Unsupported package manager"),
         }
     }
@@ -84,6 +89,7 @@ impl Backend {
             Backend::Pacman,
             Backend::Yay,
             Backend::Dnf,
+            Backend::Pnpm,
             Backend::Apt,
             Backend::Winget,
         ];
