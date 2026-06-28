@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{
     fmt::Display,
     sync::atomic::AtomicBool,
@@ -6,12 +6,40 @@ use std::{
 };
 
 use ratatui::widgets::ListState;
-use wherehouse::package_manager::{Backend, SearchResult};
+use wherehouse::package_manager::{Backend, Command, SearchResult};
 
 pub mod event;
 pub mod update;
 
 pub use event::Event;
+
+const TOAST_DURATION: std::time::Duration = std::time::Duration::from_secs(3);
+
+#[derive(Clone)]
+pub struct Toast {
+    pub message: String,
+    pub toast_type: ToastType,
+    pub created_at: Instant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ToastType {
+    Success,
+    Error,
+    Info,
+    Progress,
+}
+
+impl Display for ToastType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ToastType::Success => write!(f, "✓"),
+            ToastType::Error => write!(f, "✗"),
+            ToastType::Info => write!(f, "i"),
+            ToastType::Progress => write!(f, ""),
+        }
+    }
+}
 
 pub struct State {
     pub exit: AtomicBool,
@@ -22,7 +50,9 @@ pub struct State {
     pub input_mode: Arc<Mutex<InputMode>>,
     pub search: Arc<Mutex<SearchState>>,
     pub healthcheck_results: Arc<Mutex<String>>,
-    pub error: Arc<Mutex<Option<String>>>,
+
+    pub toasts: Arc<Mutex<Vec<Toast>>>,
+    pub running_commands: Arc<Mutex<Vec<Command>>>,
 }
 
 impl State {
@@ -36,7 +66,9 @@ impl State {
             input_mode: Arc::new(Mutex::new(InputMode::Insert)),
             search: Arc::new(Mutex::new(SearchState::default())),
             healthcheck_results: Arc::new(Mutex::new(String::default())),
-            error: Arc::new(Mutex::new(None)),
+
+            toasts: Arc::new(Mutex::new(Vec::new())),
+            running_commands: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -76,11 +108,53 @@ impl State {
         self.search.lock().unwrap()
     }
 
-    pub fn healthcheck_results(&self) -> String {
-        (*self.healthcheck_results.lock().unwrap()).clone()
+    pub fn add_toast(&self, message: String, toast_type: ToastType) {
+        self.toasts.lock().unwrap().push(Toast {
+            message,
+            toast_type,
+            created_at: Instant::now(),
+        });
     }
-    pub fn set_healthcheck_results(&self, result: String) {
-        *self.healthcheck_results.lock().unwrap() = result;
+
+    pub fn clean_expired_toasts(&self) {
+        self.toasts
+            .lock()
+            .unwrap()
+            .retain(|t| t.toast_type == ToastType::Progress || t.created_at.elapsed() < TOAST_DURATION);
+    }
+
+    pub fn add_running_command(&self, cmd: Command) {
+        self.running_commands.lock().unwrap().push(cmd);
+    }
+
+    pub fn remove_running_command(&self, cmd: &Command) {
+        self.running_commands.lock().unwrap().retain(|c| c != cmd);
+    }
+
+    pub fn is_any_command_running(&self) -> bool {
+        !self.running_commands.lock().unwrap().is_empty()
+    }
+
+    pub fn debounce_search(&self) -> bool {
+        let mut search = self.search.lock().unwrap();
+        if search.query.is_empty() {
+            return false;
+        }
+        if search.query_last_changed > search.query_last_searched
+            && search.query_last_changed.elapsed() >= Duration::from_millis(300)
+        {
+            search.query_last_searched = Instant::now();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn current_toast(&self) -> Option<Toast> {
+        if self.is_any_command_running() {
+            return self.toasts.lock().unwrap().iter().rfind(|t| t.toast_type == ToastType::Progress).cloned();
+        }
+        self.toasts.lock().unwrap().iter().rfind(|t| t.toast_type != ToastType::Progress).cloned()
     }
 }
 

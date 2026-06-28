@@ -1,6 +1,6 @@
 use wherehouse::package_manager::{Command, SearchResult};
 
-use super::Pane;
+use super::{Pane, ToastType};
 
 pub enum Event {
     InsertChar(char),
@@ -16,4 +16,5 @@ pub enum Event {
     },
     CommandOutputReceived { cmd: Command, output: String },
     CommandFailed { cmd: Command, error: String },
+    ShowToast { message: String, toast_type: ToastType },
 }

@@ -1,4 +1,5 @@
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
@@ -6,10 +7,12 @@ use wherehouse::package_manager::Command;
 
 use crate::state::{Event, InputMode, Pane, State};
 
+const PACKAGE_INFO_DEBOUNCE: Duration = Duration::from_millis(150);
+
 pub struct InputHandler {
     tx: Sender<Event>,
     state: Arc<State>,
-    update: bool,
+    last_package_request: Option<Instant>,
 }
 
 impl InputHandler {
@@ -17,7 +20,7 @@ impl InputHandler {
         Self {
             tx,
             state,
-            update: false,
+            last_package_request: None,
         }
     }
     pub fn run(&mut self) -> color_eyre::Result<()> {
@@ -29,16 +32,13 @@ impl InputHandler {
         }
     }
     fn capture_input(&mut self) -> color_eyre::Result<()> {
-        if event::poll(Duration::from_millis(300))? {
-            self.update = true;
+        if event::poll(Duration::from_millis(100))? {
             match event::read().unwrap() {
                 event::Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                     self.handle_key_press(key_event)?;
                 }
                 _ => {}
             }
-        } else {
-            self.update_search()?;
         }
         Ok(())
     }
@@ -128,34 +128,38 @@ impl InputHandler {
         Ok(())
     }
 
-    fn reset_selected_search_result(&self) -> color_eyre::Result<()> {
-        let mut search = self.state.search.lock().unwrap();
-        search.list_state.select(None);
-        Ok(())
-    }
-
-    fn select_previous_search_result(&self) -> color_eyre::Result<()> {
-        self.tx.send(Event::SelectionMoved(-1))?;
-        self.tx.send(Event::CommandIssued(Command::PackageInfo))?;
-        Ok(())
-    }
-
-    fn select_next_search_result(&self) -> color_eyre::Result<()> {
-        self.tx.send(Event::SelectionMoved(1))?;
-        self.tx.send(Event::CommandIssued(Command::PackageInfo))?;
-        Ok(())
-    }
-
-    fn update_search(&mut self) -> color_eyre::Result<()> {
-        if self.update == false {
+    fn request_package_info(&mut self) -> color_eyre::Result<()> {
+        if self.last_package_request.is_some_and(|t| t.elapsed() < PACKAGE_INFO_DEBOUNCE) {
             return Ok(());
+        }
+        self.last_package_request = Some(Instant::now());
+        self.tx.send(Event::CommandIssued(Command::PackageInfo))?;
+        Ok(())
+    }
+
+    fn select_previous_search_result(&mut self) -> color_eyre::Result<()> {
+        let search = self.state.search.lock().unwrap();
+        let can_move = search.list_state.selected().map_or(false, |s| s > 0);
+        let len = search.results.len();
+        drop(search);
+        self.tx.send(Event::SelectionMoved(-1))?;
+        if can_move && len > 0 {
+            self.request_package_info()?;
+        }
+        Ok(())
+    }
+
+    fn select_next_search_result(&mut self) -> color_eyre::Result<()> {
+        let search = self.state.search.lock().unwrap();
+        let can_move = match search.list_state.selected() {
+            Some(s) => s + 1 < search.results.len(),
+            None => false,
         };
-        self.update = false;
-        if let Pane::SearchInput = self.state.current_pane() {
-            if self.state.search().query.is_empty() {
-                return Ok(());
-            };
-            self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
+        let len = search.results.len();
+        drop(search);
+        self.tx.send(Event::SelectionMoved(1))?;
+        if can_move && len > 0 {
+            self.request_package_info()?;
         }
         Ok(())
     }
