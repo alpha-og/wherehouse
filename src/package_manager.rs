@@ -80,7 +80,7 @@ pub fn handle_spawned_command(
             };
             return Some(SpawnedCommandOutput { out, err });
         }
-        // check if spawned command is stale and terminal if it is stale
+        // check if spawned command is stale and terminate if it is stale
         if let Ok(is_stale) = rx.try_recv() {
             if is_stale {
                 child.kill().unwrap(); // kill the spawned command
