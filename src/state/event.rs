@@ -12,6 +12,7 @@ pub enum Event {
     SearchCompleted {
         results: Vec<SearchResult>,
         warning: Option<String>,
+        query: String,
     },
     CommandOutputReceived { cmd: Command, output: String },
     CommandFailed { cmd: Command, error: String },

@@ -7,6 +7,7 @@ use task_manager::TaskManager;
 use tracing::info;
 use wherehouse::package_manager::{self, Command};
 
+mod cache;
 mod input;
 mod logging;
 mod state;

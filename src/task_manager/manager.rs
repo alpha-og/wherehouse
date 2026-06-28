@@ -38,15 +38,16 @@ impl<T: PackageManager + Send + Sync + 'static> TaskManager<T> {
                 let query = search.query.clone();
                 drop(search);
                 info!("Command::FilterPackages => {query}");
-                let result = package_manager.filter_packages(rx_task, query);
+                let result = package_manager.filter_packages(rx_task, query.clone());
                 match result {
                     Ok((results, warning)) => {
-                        let _ = tx.send(Event::SearchCompleted { results, warning });
+                        let _ = tx.send(Event::SearchCompleted { results, warning, query });
                     }
                     Err(e) => {
                         let _ = tx.send(Event::SearchCompleted {
                             results: Vec::new(),
                             warning: Some(format!("Search failed: {e}")),
+                            query,
                         });
                     }
                 }

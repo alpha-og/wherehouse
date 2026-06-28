@@ -8,6 +8,8 @@ use std::{
 use ratatui::widgets::ListState;
 use wherehouse::package_manager::{Backend, Command, SearchResult};
 
+use crate::cache::Cache;
+
 pub mod event;
 pub mod update;
 
@@ -54,6 +56,9 @@ pub struct State {
     pub toasts: Arc<Mutex<Vec<Toast>>>,
     pub running_commands: Arc<Mutex<Vec<Command>>>,
     pub context_scroll: Arc<Mutex<usize>>,
+
+    pub package_info_cache: Cache<String>,
+    pub search_cache: Cache<Vec<SearchResult>>,
 }
 
 impl State {
@@ -71,6 +76,9 @@ impl State {
             toasts: Arc::new(Mutex::new(Vec::new())),
             running_commands: Arc::new(Mutex::new(Vec::new())),
             context_scroll: Arc::new(Mutex::new(0)),
+
+            package_info_cache: Cache::new(100, Duration::from_secs(60)),
+            search_cache: Cache::new(50, Duration::from_secs(30)),
         }
     }
 

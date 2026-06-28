@@ -57,21 +57,62 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             None
         }
         super::Event::CommandIssued(cmd) => {
-            let progress_msg = match cmd {
-                Command::InstallPackage => "Installing...",
-                Command::UninstallPackage => "Uninstalling...",
-                Command::CheckHealth => "Checking health...",
-                Command::Config => "Loading config...",
-                Command::FilterPackages => "Searching...",
-                Command::PackageInfo => "Loading info...",
-                _ => "Running...",
-            };
-            state.remove_running_command(cmd);
-            state.add_toast(progress_msg.to_string(), ToastType::Progress);
-            state.add_running_command(cmd.clone());
-            Some(cmd.clone())
+            match cmd {
+                Command::PackageInfo => {
+                    let backend = state.config.lock().unwrap().backend.alias().to_string();
+                    let key = {
+                        let search = state.search.lock().unwrap();
+                        search.list_state.selected()
+                            .and_then(|s| search.results.get(s))
+                            .map(|r| format!("{backend}/info:{}", r.name))
+                    };
+                    if let Some(ref key) = key {
+                        if let Some(cached) = state.package_info_cache.get(key) {
+                            state.search.lock().unwrap().selected_result_info = cached;
+                            return None;
+                        }
+                    }
+                    state.remove_running_command(cmd);
+                    state.add_toast("Loading info...".to_string(), ToastType::Progress);
+                    state.add_running_command(cmd.clone());
+                    Some(cmd.clone())
+                }
+                Command::FilterPackages => {
+                    let backend = state.config.lock().unwrap().backend.alias().to_string();
+                    let query = state.search.lock().unwrap().query.clone();
+                    let key = format!("{backend}/search:{query}");
+                    if let Some(cached) = state.search_cache.get(&key) {
+                        let mut search = state.search.lock().unwrap();
+                        search.results = cached;
+                        *search.list_state.offset_mut() = 0;
+                        if search.list_state.selected().is_none() && !search.results.is_empty() {
+                            search.list_state.select(Some(0));
+                        }
+                        return None;
+                    }
+                    state.remove_running_command(cmd);
+                    state.add_toast("Searching...".to_string(), ToastType::Progress);
+                    state.add_running_command(cmd.clone());
+                    Some(cmd.clone())
+                }
+                _ => {
+                    let progress_msg = match cmd {
+                        Command::InstallPackage => "Installing...",
+                        Command::UninstallPackage => "Uninstalling...",
+                        Command::CheckHealth => "Checking health...",
+                        Command::Config => "Loading config...",
+                        _ => "Running...",
+                    };
+                    state.remove_running_command(cmd);
+                    state.add_toast(progress_msg.to_string(), ToastType::Progress);
+                    state.add_running_command(cmd.clone());
+                    Some(cmd.clone())
+                }
+            }
         }
-        super::Event::SearchCompleted { results, warning } => {
+        super::Event::SearchCompleted { results, warning, query } => {
+            let backend = state.config.lock().unwrap().backend.alias().to_string();
+            state.search_cache.set(format!("{backend}/search:{query}"), results.clone());
             let mut search = state.search.lock().unwrap();
             search.results = results.clone();
             *search.list_state.offset_mut() = 0;
@@ -95,6 +136,14 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
                 state.add_toast(msg.clone(), ToastType::Info);
             }
             if should_fetch_info {
+                let first_name = results.first().map(|r| r.name.clone());
+                if let Some(ref name) = first_name {
+                    let key = format!("{backend}/info:{name}");
+                    if let Some(cached) = state.package_info_cache.get(&key) {
+                        state.search.lock().unwrap().selected_result_info = cached;
+                        return None;
+                    }
+                }
                 Some(Command::PackageInfo)
             } else {
                 None
@@ -124,6 +173,16 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             cmd: Command::PackageInfo,
             output,
         } => {
+            let backend = state.config.lock().unwrap().backend.alias().to_string();
+            let key = {
+                let search = state.search.lock().unwrap();
+                search.list_state.selected()
+                    .and_then(|s| search.results.get(s))
+                    .map(|r| format!("{backend}/info:{}", r.name))
+            };
+            if let Some(key) = key {
+                state.package_info_cache.set(key, output.clone());
+            }
             state.search.lock().unwrap().selected_result_info = output.clone();
             state.remove_running_command(&Command::PackageInfo);
             None
@@ -134,6 +193,7 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
         } => {
             state.switch_pane(Pane::SearchResults(output.clone()));
             state.add_toast("Install complete".to_string(), ToastType::Success);
+            invalidate_caches(state);
             state.remove_running_command(&Command::InstallPackage);
             None
         }
@@ -143,10 +203,15 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
         } => {
             state.switch_pane(Pane::SearchResults(output.clone()));
             state.add_toast("Uninstall complete".to_string(), ToastType::Success);
+            invalidate_caches(state);
             state.remove_running_command(&Command::UninstallPackage);
             None
         }
         super::Event::CommandOutputReceived { cmd, output } => {
+            match cmd {
+                Command::UpdatePackage | Command::Clean => invalidate_caches(state),
+                _ => {}
+            }
             state.switch_pane(Pane::SearchResults(output.clone()));
             state.remove_running_command(cmd);
             None
@@ -163,6 +228,12 @@ pub fn update(state: &State, event: &super::Event) -> Option<Command> {
             None
         }
     }
+}
+
+fn invalidate_caches(state: &State) {
+    let backend = state.config.lock().unwrap().backend.alias().to_string();
+    state.package_info_cache.invalidate_prefix(&backend);
+    state.search_cache.invalidate_prefix(&backend);
 }
 
 fn cmd_name(cmd: &Command) -> &'static str {
