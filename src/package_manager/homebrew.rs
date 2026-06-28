@@ -237,7 +237,9 @@ impl PackageManager for Homebrew {
                         .split("\n")
                         .map(|item| item.to_string())
                         .collect::<Vec<String>>();
-                    Ok(fuzz(installed_packages, pattern, 3))
+                    let pattern_vec: Vec<_> = pattern.chars().collect();
+                    let threshold = (pattern_vec.len() + 1) * (25 / 100);
+                    Ok(fuzz(installed_packages, pattern, threshold))
                 }
                 Err(e) => Err(format!("failed to execute command brew list: {e}")),
             },
