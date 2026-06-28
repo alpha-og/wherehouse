@@ -1,23 +1,21 @@
+use std::sync::mpsc::Sender;
 use std::{sync::Arc, time::Duration};
 
 use ratatui::crossterm::event::{self, KeyCode, KeyEventKind};
-use wherehouse::package_manager::{Command, PackageLocality, PackageManager};
+use wherehouse::package_manager::{Command, PackageLocality};
 
-use crate::{
-    state::{InputMode, Pane, State},
-    task_manager::TaskManager, // trace_dbg,
-};
+use crate::state::{Event, InputMode, Pane, State};
 
-pub struct InputHandler<T> {
-    task_manager: TaskManager<T>,
+pub struct InputHandler {
+    tx: Sender<Event>,
     state: Arc<State>,
     update: bool,
 }
 
-impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
-    pub fn new(state: Arc<State>, task_manager: TaskManager<T>) -> Self {
+impl InputHandler {
+    pub fn new(state: Arc<State>, tx: Sender<Event>) -> Self {
         Self {
-            task_manager,
+            tx,
             state,
             update: false,
         }
@@ -26,10 +24,9 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
         loop {
             self.capture_input()?;
             if self.state.exit() {
-                break;
+                break Ok(());
             }
         }
-        Ok(())
     }
     fn capture_input(&mut self) -> color_eyre::Result<()> {
         if event::poll(Duration::from_millis(300))? {
@@ -51,16 +48,15 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
         if let InputMode::Normal = input_mode {
             match key_event.code {
                 KeyCode::Char('1') => {
-                    self.task_manager.execute(Command::Config)?;
-                    state.set_current_pane(Pane::About(state.about()));
+                    self.tx.send(Event::CommandIssued(Command::Config))?;
                 }
                 KeyCode::Char('2') => {
-                    state.set_current_pane(Pane::SearchInput);
+                    self.tx.send(Event::PaneFocused(Pane::SearchInput))?;
                 }
                 KeyCode::Char('3') => {
-                    state.set_current_pane(Pane::SearchResults(
-                        (*state.search()).selected_result_info.clone(),
-                    ));
+                    let info = state.search().selected_result_info.clone();
+                    self.tx
+                        .send(Event::PaneFocused(Pane::SearchResults(info)))?;
                 }
                 KeyCode::Char('q') => self.quit()?,
                 _ => {}
@@ -71,11 +67,8 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
             Pane::About(_) => {
                 if let InputMode::Normal = input_mode {
                     match key_event.code {
-                        // KeyCode::Char('I') => self.state.update_context(
-                        //     self.state.config.lock().unwrap().system_config.clone(),
-                        // ),
                         KeyCode::Char('C') => {
-                            self.task_manager.execute(Command::CheckHealth)?;
+                            self.tx.send(Event::CommandIssued(Command::CheckHealth))?;
                         }
                         _ => {}
                     }
@@ -83,16 +76,16 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
             }
             Pane::SearchInput => match input_mode {
                 InputMode::Normal => match key_event.code {
-                    KeyCode::Char('i') => state.set_input_mode(InputMode::Insert),
+                    KeyCode::Char('i') => {
+                        self.tx.send(Event::InputModeChanged(InputMode::Insert))?;
+                    }
                     KeyCode::Char('l') => {
-                        let mut search = state.search();
-                        search.source = PackageLocality::Local;
-                        self.task_manager.execute(Command::FilterPackages)?;
+                        self.tx.send(Event::SearchSourceChanged(PackageLocality::Local))?;
+                        self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
                     }
                     KeyCode::Char('r') => {
-                        let mut search = state.search();
-                        search.source = PackageLocality::Remote;
-                        self.task_manager.execute(Command::FilterPackages)?;
+                        self.tx.send(Event::SearchSourceChanged(PackageLocality::Remote))?;
+                        self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
                     }
                     _ => {}
                 },
@@ -101,7 +94,9 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
                     KeyCode::Backspace => {
                         self.pop_search_query()?;
                     }
-                    KeyCode::Esc => state.set_input_mode(InputMode::Normal),
+                    KeyCode::Esc => {
+                        self.tx.send(Event::InputModeChanged(InputMode::Normal))?;
+                    }
                     _ => {}
                 },
             },
@@ -110,8 +105,13 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
                     KeyCode::Char('q') => self.quit()?,
                     KeyCode::Char('k') => self.select_previous_search_result()?,
                     KeyCode::Char('j') => self.select_next_search_result()?,
-                    KeyCode::Char('I') => self.task_manager.execute(Command::InstallPackage)?,
-                    KeyCode::Char('X') => self.task_manager.execute(Command::UninstallPackage)?,
+                    KeyCode::Char('I') => {
+                        self.tx.send(Event::CommandIssued(Command::InstallPackage))?;
+                    }
+                    KeyCode::Char('X') => {
+                        self.tx
+                            .send(Event::CommandIssued(Command::UninstallPackage))?;
+                    }
                     _ => {}
                 },
                 _ => {}
@@ -122,46 +122,35 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
     }
 
     fn quit(&self) -> color_eyre::Result<()> {
-        self.state.set_exit(true);
+        self.tx.send(Event::Quit)?;
         Ok(())
     }
 
     fn append_search_query(&mut self, ch: char) -> color_eyre::Result<()> {
-        self.reset_selected_search_result()?;
-        if let Ok(mut search) = self.state.search.lock() {
-            search.query.push(ch);
-        }
+        self.tx.send(Event::InsertChar(ch))?;
         Ok(())
     }
 
     fn pop_search_query(&mut self) -> color_eyre::Result<()> {
-        self.reset_selected_search_result()?;
-        if let Ok(mut search) = self.state.search.lock() {
-            search.query.pop();
-        }
+        self.tx.send(Event::DeleteChar)?;
         Ok(())
     }
 
-    fn reset_selected_search_result(&mut self) -> color_eyre::Result<()> {
-        if let Ok(mut search) = self.state.search.lock() {
-            search.list_state.select(None);
-        }
+    fn reset_selected_search_result(&self) -> color_eyre::Result<()> {
+        let mut search = self.state.search.lock().unwrap();
+        search.list_state.select(None);
         Ok(())
     }
 
-    fn select_previous_search_result(&mut self) -> color_eyre::Result<()> {
-        if let Ok(mut search) = self.state.search.lock() {
-            search.list_state.select_previous();
-        }
-        self.task_manager.execute(Command::PackageInfo)?;
+    fn select_previous_search_result(&self) -> color_eyre::Result<()> {
+        self.tx.send(Event::SelectionMoved(-1))?;
+        self.tx.send(Event::CommandIssued(Command::PackageInfo))?;
         Ok(())
     }
 
-    fn select_next_search_result(&mut self) -> color_eyre::Result<()> {
-        if let Ok(mut search) = self.state.search.lock() {
-            search.list_state.select_next();
-        }
-        self.task_manager.execute(Command::PackageInfo)?;
+    fn select_next_search_result(&self) -> color_eyre::Result<()> {
+        self.tx.send(Event::SelectionMoved(1))?;
+        self.tx.send(Event::CommandIssued(Command::PackageInfo))?;
         Ok(())
     }
 
@@ -172,12 +161,9 @@ impl<T: PackageManager + Send + Sync + 'static> InputHandler<T> {
         self.update = false;
         if let Pane::SearchInput = self.state.current_pane() {
             if self.state.search().query.is_empty() {
-                self.reset_selected_search_result()?;
-                let mut search = self.state.search.lock().unwrap();
-                search.results = Vec::default();
                 return Ok(());
             };
-            self.task_manager.execute(Command::FilterPackages)?;
+            self.tx.send(Event::CommandIssued(Command::FilterPackages))?;
         }
         Ok(())
     }

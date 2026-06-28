@@ -1,26 +1,33 @@
 use std::{
     fmt::Display,
+    sync::atomic::AtomicBool,
     sync::{Arc, Mutex, MutexGuard},
 };
 
 use ratatui::widgets::ListState;
 use wherehouse::package_manager::{Backend, PackageLocality};
 
-pub struct State {
-    exit: Arc<Mutex<bool>>,
-    pub config: Arc<Mutex<Config>>,
-    about: Arc<Mutex<String>>,
+pub mod event;
+pub mod update;
 
-    current_pane: Arc<Mutex<Pane>>,
-    input_mode: Arc<Mutex<InputMode>>,
+pub use event::Event;
+
+pub struct State {
+    pub exit: AtomicBool,
+    pub config: Arc<Mutex<Config>>,
+    pub about: Arc<Mutex<String>>,
+
+    pub current_pane: Arc<Mutex<Pane>>,
+    pub input_mode: Arc<Mutex<InputMode>>,
     pub search: Arc<Mutex<SearchState>>,
-    healthcheck_results: Arc<Mutex<String>>,
+    pub healthcheck_results: Arc<Mutex<String>>,
+    pub error: Arc<Mutex<Option<String>>>,
 }
 
 impl State {
     pub fn new() -> Self {
         Self {
-            exit: Arc::new(Mutex::new(false)),
+            exit: AtomicBool::new(false),
             config: Arc::new(Mutex::new(Config::default())),
             about: Arc::new(Mutex::new(String::default())),
 
@@ -28,17 +35,15 @@ impl State {
             input_mode: Arc::new(Mutex::new(InputMode::Insert)),
             search: Arc::new(Mutex::new(SearchState::default())),
             healthcheck_results: Arc::new(Mutex::new(String::default())),
+            error: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn exit(&self) -> bool {
-        match self.exit.try_lock() {
-            Ok(exit) => *exit,
-            Err(_) => false,
-        }
+        self.exit.load(std::sync::atomic::Ordering::Relaxed)
     }
     pub fn set_exit(&self, exit: bool) {
-        *self.exit.lock().unwrap() = exit;
+        self.exit.store(exit, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn config(&self) -> MutexGuard<'_, Config> {

@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use ratatui::layout::{Constraint, Layout};
 
-use crate::{
-    state::State,
-    widget::{
-        about_pane::AboutPane, context_pane::ContextPane, search_input_pane::SearchInputPane,
-        search_results_pane::SearchResultsPane, status_bar::StatusBar,
-    },
+use crate::state::State;
+use crate::widget::{
+    about_pane::AboutPane, context_pane::ContextPane, search_input_pane::SearchInputPane,
+    search_results_pane::SearchResultsPane, status_bar::StatusBar,
 };
 
 use ratatui::{
@@ -41,55 +39,33 @@ pub fn restore() -> io::Result<()> {
     Ok(())
 }
 
-pub struct Tui {
-    state: Arc<State>,
-}
+pub fn draw(state: &Arc<State>, frame: &mut ratatui::Frame) {
+    let layout =
+        Layout::vertical(vec![Constraint::Fill(1), Constraint::Length(1)]).split(frame.area());
 
-impl Tui {
-    pub fn new(state: Arc<State>) -> Self {
-        Self { state }
-    }
-    pub fn run(
-        &mut self,
-        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    ) -> color_eyre::Result<()> {
-        loop {
-            terminal.draw(|frame| self.draw(frame))?;
-            if self.state.exit() {
-                break;
-            }
-        }
-        Ok(())
-    }
+    let main_layout =
+        Layout::horizontal(vec![Constraint::Percentage(40), Constraint::Fill(1)]).split(layout[0]);
 
-    pub fn draw(&self, frame: &mut ratatui::Frame) {
-        let layout =
-            Layout::vertical(vec![Constraint::Fill(1), Constraint::Length(1)]).split(frame.area());
+    let sidebar_layout = Layout::vertical(vec![
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Fill(1),
+    ])
+    .split(main_layout[0]);
 
-        let main_layout = Layout::horizontal(vec![Constraint::Percentage(40), Constraint::Fill(1)])
-            .split(layout[0]);
+    let about_pane = AboutPane::new(state.clone());
+    frame.render_widget(about_pane, sidebar_layout[0]);
 
-        let sidebar_layout = Layout::vertical(vec![
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Fill(1),
-        ])
-        .split(main_layout[0]);
+    let search_input_pane = SearchInputPane::new(state.clone());
+    frame.render_widget(search_input_pane, sidebar_layout[1]);
 
-        let about_pane = AboutPane::new(self.state.clone());
-        frame.render_widget(about_pane, sidebar_layout[0]);
+    let search_results_pane = SearchResultsPane::new(state.clone());
+    let mut list_state = state.search.lock().unwrap().list_state.clone();
+    frame.render_stateful_widget(search_results_pane, sidebar_layout[2], &mut list_state);
 
-        let search_input_pane = SearchInputPane::new(self.state.clone());
-        frame.render_widget(search_input_pane, sidebar_layout[1]);
+    let info_pane = ContextPane::new(state.clone());
+    frame.render_widget(info_pane, main_layout[1]);
 
-        let search_results_pane = SearchResultsPane::new(self.state.clone());
-        let mut list_state = self.state.search.lock().unwrap().list_state.clone();
-        frame.render_stateful_widget(search_results_pane, sidebar_layout[2], &mut list_state);
-
-        let info_pane = ContextPane::new(self.state.clone());
-        frame.render_widget(info_pane, main_layout[1]);
-
-        let status_bar = StatusBar::new(self.state.clone());
-        frame.render_widget(status_bar, layout[1]);
-    }
+    let status_bar = StatusBar::new(state.clone());
+    frame.render_widget(status_bar, layout[1]);
 }

@@ -1,7 +1,8 @@
-use input::InputHandler;
+use std::sync::Arc;
+use std::thread;
+
 use logging::initialize_logging;
-use state::State;
-use std::{sync::Arc, thread};
+use state::Event;
 use task_manager::TaskManager;
 use tracing::info;
 use wherehouse::package_manager::{self};
@@ -18,18 +19,34 @@ fn main() -> color_eyre::Result<()> {
     initialize_logging()?;
     info!("Initialized logging");
 
-    let state = Arc::new(State::new());
-    let package_manager = Arc::new(package_manager::detect_package_manager());
-    let task_manager = TaskManager::new(state.clone(), package_manager);
+    let state = Arc::new(state::State::new());
+    let (event_tx, event_rx) = std::sync::mpsc::channel::<Event>();
 
-    let mut input_handler = InputHandler::new(state.clone(), task_manager);
+    let package_manager = Arc::new(package_manager::detect_package_manager());
+    let mut task_manager = TaskManager::new(state.clone(), package_manager, event_tx.clone());
+
+    let mut input_handler = input::InputHandler::new(state.clone(), event_tx);
     let _input_thread = thread::spawn(move || input_handler.run());
     info!("Input handler thread initiated");
 
     let mut terminal = tui::init()?;
-    let tui = tui::Tui::new(state).run(&mut terminal);
+
+    loop {
+        while let Ok(event) = event_rx.try_recv() {
+            if let Some(cmd) = state::update::update(&state, &event) {
+                task_manager.execute(cmd)?;
+            }
+        }
+
+        terminal.draw(|frame| tui::draw(&state, frame))?;
+
+        if state.exit() {
+            break;
+        }
+    }
+
     if let Err(err) = tui::restore() {
         eprintln!("failed to restore terminal {err}");
     }
-    tui
+    Ok(())
 }
