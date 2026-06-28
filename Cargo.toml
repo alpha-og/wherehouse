@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-color-eyre = "0.6.4"
+color-eyre = "0.6.5"
 directories = "6.0.0"
 lazy_static = "1.5.0"
-ratatui = "0.29.0"
-tracing = "0.1.41"
+ratatui = "0.30.2"
+tracing = "0.1.44"
 tracing-error = "0.2.1"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

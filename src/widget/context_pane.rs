@@ -1,6 +1,6 @@
 use crate::state::{Pane, State};
 use ratatui::{
-    layout::Alignment,
+    layout::HorizontalAlignment,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Paragraph, Widget},
 };
@@ -22,7 +22,7 @@ impl Widget for ContextPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             // .title("4")
-            .title_alignment(Alignment::Left)
+            .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
         let context = match self.state.current_pane() {
             Pane::About(context) => context,

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ratatui::{
-    layout::Alignment::Left,
+    layout::HorizontalAlignment::Left,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType::Rounded, Paragraph, Widget},
 };

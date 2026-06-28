@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ratatui::{
-    layout::Alignment,
+    layout::HorizontalAlignment,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Paragraph, Widget},
 };
@@ -24,7 +24,7 @@ impl Widget for AboutPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .title("1")
-            .title_alignment(Alignment::Left)
+            .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
 
         let info_style = Style::default().fg(Color::White);

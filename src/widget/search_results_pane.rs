@@ -1,6 +1,6 @@
 use crate::state::{Pane, State};
 use ratatui::{
-    layout::Alignment,
+    layout::HorizontalAlignment,
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, HighlightSpacing, List, ListItem, ListState, StatefulWidget},
 };
@@ -24,7 +24,7 @@ impl StatefulWidget for SearchResultsPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .title("3")
-            .title_alignment(Alignment::Left)
+            .title_alignment(HorizontalAlignment::Left)
             .style(block_style);
         let search = self.state.search.lock().unwrap();
         let search_results_style = Style::default().fg(Color::White);
