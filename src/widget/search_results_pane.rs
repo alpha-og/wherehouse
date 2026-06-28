@@ -30,16 +30,15 @@ impl StatefulWidget for SearchResultsPane {
         let installed_style = Style::default()
             .fg(Color::Green)
             .add_modifier(Modifier::BOLD);
-        let not_installed_style = Style::default().fg(Color::White);
+        let not_installed_style = Style::default().fg(Color::DarkGray);
         let search_results = search
             .results
             .iter()
             .map(|result| {
-                let prefix = if result.is_installed { "* " } else { "  " };
-                let style = if result.is_installed {
-                    installed_style
+                let (prefix, style) = if result.is_installed {
+                    ("● ", installed_style)
                 } else {
-                    not_installed_style
+                    ("○ ", not_installed_style)
                 };
                 ListItem::new(format!("{prefix}{}", result.name)).style(style)
             })
@@ -47,7 +46,7 @@ impl StatefulWidget for SearchResultsPane {
         let is_focused = matches!(self.state.current_pane(), Pane::SearchResults(_));
         let selected_style = if is_focused {
             Style::default()
-                .bg(Color::White)
+                .bg(Color::Rgb(200, 225, 255))
                 .fg(Color::Black)
                 .add_modifier(Modifier::BOLD)
         } else {
@@ -59,7 +58,7 @@ impl StatefulWidget for SearchResultsPane {
             .block(block)
             .style(not_installed_style)
             .highlight_style(selected_style)
-            .highlight_symbol(">")
+            .highlight_symbol("")
             .highlight_spacing(HighlightSpacing::Always);
         search_results.render(area, buf, state);
     }
