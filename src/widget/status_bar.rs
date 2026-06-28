@@ -20,15 +20,26 @@ impl Widget for StatusBar {
     {
         let config = self.state.config.lock().unwrap();
 
-        let left_text = format!(" {} ", self.state.input_mode());
+        let search = self.state.search.lock().unwrap();
+        let left_text = if search.search_active {
+            format!("> {}", search.query)
+        } else {
+            String::new()
+        };
+        drop(search);
+
         let status_bar_layout =
             Layout::horizontal(vec![Constraint::Percentage(70), Constraint::Fill(1)]).split(area);
-        let status_bar_left = Span::styled(
-            left_text,
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        );
+        let status_bar_left = if left_text.is_empty() {
+            Span::raw("")
+        } else {
+            Span::styled(
+                left_text,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
+        };
         let status_bar_right =
             Paragraph::new(format!(" {} {}", config.app_name, config.app_version,))
                 .right_aligned()
