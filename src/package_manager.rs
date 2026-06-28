@@ -145,14 +145,6 @@ pub trait PackageManager: Send + Sync + 'static {
         source: PackageLocality,
         pattern: String,
     ) -> Result<Vec<String>, PackageManagerError>;
-    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
-    fn package_info(
-        &self,
-        rx: Receiver<bool>,
-        package_name: String,
-    ) -> Result<String, PackageManagerError>;
-    fn check_health(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
-    fn clean(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
     fn install_package(
         &self,
         rx: Receiver<bool>,
@@ -168,6 +160,31 @@ pub trait PackageManager: Send + Sync + 'static {
         rx: Receiver<bool>,
         package_name: String,
     ) -> Result<String, PackageManagerError>;
+
+    fn package_manager_config(
+        &self,
+        _rx: Receiver<bool>,
+    ) -> Result<String, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation("config".into()))
+    }
+
+    fn package_info(
+        &self,
+        _rx: Receiver<bool>,
+        _package_name: String,
+    ) -> Result<String, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation("info".into()))
+    }
+
+    fn check_health(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation(
+            "health check".into(),
+        ))
+    }
+
+    fn clean(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation("clean".into()))
+    }
 }
 
 pub fn detect_package_manager() -> impl PackageManager {
