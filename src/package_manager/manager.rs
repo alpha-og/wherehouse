@@ -31,6 +31,24 @@ pub trait PackageManager: Send + Sync + 'static {
         package_name: String,
     ) -> Result<String, PackageManagerError>;
 
+    fn check_outdated(
+        &self,
+        _rx: Receiver<bool>,
+    ) -> Result<Vec<String>, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation(
+            "check outdated".into(),
+        ))
+    }
+
+    fn update_all_packages(
+        &self,
+        _rx: Receiver<bool>,
+    ) -> Result<String, PackageManagerError> {
+        Err(PackageManagerError::UnsupportedOperation(
+            "update all".into(),
+        ))
+    }
+
     fn package_manager_config(
         &self,
         _rx: Receiver<bool>,

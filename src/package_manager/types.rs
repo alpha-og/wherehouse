@@ -10,4 +10,5 @@ pub struct SpawnedCommandOutput {
 pub struct SearchResult {
     pub name: String,
     pub is_installed: bool,
+    pub update_available: bool,
 }

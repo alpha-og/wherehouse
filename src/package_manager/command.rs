@@ -8,5 +8,7 @@ pub enum Command {
     InstallPackage,
     UninstallPackage,
     UpdatePackage,
+    UpdateAll,
     Clean,
+    CheckOutdated,
 }

@@ -298,6 +298,7 @@ impl PackageManager for Homebrew {
                 .into_iter()
                 .map(|name| SearchResult {
                     is_installed: true,
+                    update_available: false,
                     name,
                 })
                 .collect();
@@ -330,6 +331,7 @@ impl PackageManager for Homebrew {
             .into_iter()
             .map(|name| SearchResult {
                 is_installed: installed_set.contains(&name),
+                update_available: false,
                 name,
             })
             .collect();
@@ -407,6 +409,38 @@ impl PackageManager for Homebrew {
             None => Err(PackageManagerError::StaleCommand),
         }
     }
+
+    fn update_all_packages(
+        &self,
+        rx: Receiver<bool>,
+    ) -> Result<String, PackageManagerError> {
+        let child = match Self::brew_upgrade(None::<[String; 0]>) {
+            Ok(child) => child,
+            Err(e) => return Err(PackageManagerError::from(e)),
+        };
+        match handle_spawned_command(rx, child) {
+            Some(output) => Ok(output.out.unwrap()),
+            None => Err(PackageManagerError::StaleCommand),
+        }
+    }
+
+    fn check_outdated(
+        &self,
+        _rx: Receiver<bool>,
+    ) -> Result<Vec<String>, PackageManagerError> {
+        let output = command(Backend::Homebrew, ["outdated"])
+            .map_err(PackageManagerError::from)?;
+        let stdout = String::from_utf8(output.stdout)
+            .map_err(|e| PackageManagerError::ExecutionFailed(e.to_string()))?;
+        let names: Vec<String> = stdout
+            .lines()
+            .filter_map(|line| line.split(' ').next())
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect();
+        Ok(names)
+    }
+
     fn uninstall_package(
         &self,
         rx: Receiver<bool>,
