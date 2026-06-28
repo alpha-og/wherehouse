@@ -8,6 +8,9 @@ use std::{
     thread,
 };
 
+use crate::package_manager::error::PackageManagerError;
+
+pub mod error;
 pub mod homebrew;
 
 pub type SpawnCommandResult = Result<std::process::Child, std::io::Error>;
@@ -141,15 +144,30 @@ pub trait PackageManager: Send + Sync + 'static {
         rx: Receiver<bool>,
         source: PackageLocality,
         pattern: String,
-    ) -> Result<Vec<String>, String>;
-    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, String>;
-    fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
-    fn check_health(&self, rx: Receiver<bool>) -> Result<String, String>;
-    fn clean(&self, rx: Receiver<bool>) -> Result<String, String>;
-    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
-    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String>;
-    fn uninstall_package(&self, rx: Receiver<bool>, package_name: String)
-    -> Result<String, String>;
+    ) -> Result<Vec<String>, PackageManagerError>;
+    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
+    fn package_info(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError>;
+    fn check_health(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
+    fn clean(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError>;
+    fn install_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError>;
+    fn update_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError>;
+    fn uninstall_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError>;
 }
 
 pub fn detect_package_manager() -> impl PackageManager {

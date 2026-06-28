@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use crate::fuzz;
+use crate::{fuzz, package_manager::error::PackageManagerError};
 
 use super::{
     Backend, CommandResult, PackageLocality, PackageManager, SpawnCommandResult, command,
@@ -228,7 +228,7 @@ impl PackageManager for Homebrew {
         _rx: Receiver<bool>,
         package_locality: super::PackageLocality,
         pattern: String,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, PackageManagerError> {
         match package_locality {
             PackageLocality::Local => match Self::brew_list() {
                 Ok(output) => {
@@ -239,7 +239,7 @@ impl PackageManager for Homebrew {
                         .collect::<Vec<String>>();
                     Ok(fuzz(installed_packages, pattern, None))
                 }
-                Err(e) => Err(format!("failed to execute command brew list: {e}")),
+                Err(e) => Err(PackageManagerError::from(e)),
             },
             PackageLocality::Remote => match Self::brew_search(pattern) {
                 Ok(output) => Ok(String::from_utf8(output.stdout)
@@ -253,79 +253,91 @@ impl PackageManager for Homebrew {
                         }
                     })
                     .collect::<Vec<String>>()),
-                Err(e) => Err(format!("failed to execute command brew list: {e}")),
+                Err(e) => Err(PackageManagerError::from(e)),
             },
         }
     }
 
-    fn package_manager_config(&self, rx: Receiver<bool>) -> Result<String, String> {
+    fn package_manager_config(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {
         match Self::brew_config() {
             Ok(output) => Ok(String::from_utf8(output.stdout).unwrap()),
-            Err(e) => Err(format!("{e}")),
+            Err(e) => Err(PackageManagerError::from(e)),
         }
     }
 
-    fn package_info(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
+    fn package_info(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError> {
         let child = match Self::brew_info::<Vec<InfoOption>, _>(None, Some([package_name])) {
             Ok(child) => child,
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(PackageManagerError::from(e)),
         };
         match handle_spawned_command(rx, child) {
             Some(output) => Ok(output.out.unwrap()),
-            None => Err("could not execute command".to_string()),
+            None => Err(PackageManagerError::StaleCommand),
         }
     }
-    fn check_health(&self, rx: Receiver<bool>) -> Result<String, String> {
+    fn check_health(&self, rx: Receiver<bool>) -> Result<String, PackageManagerError> {
         let child = match Self::brew_doctor::<Vec<DoctorOption>>(None) {
             Ok(child) => child,
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(PackageManagerError::from(e)),
         };
         match handle_spawned_command(rx, child) {
             Some(output) => Ok(output.err.unwrap()),
-            None => Err("could not execute command".to_string()),
+            None => Err(PackageManagerError::StaleCommand),
         }
     }
-    fn clean(&self, rx: Receiver<bool>) -> Result<String, String> {
+    fn clean(&self, _rx: Receiver<bool>) -> Result<String, PackageManagerError> {
         match Self::brew_cleanup::<Vec<CleanupOption>, Vec<String>>(None, None) {
             Ok(output) => Ok(String::from_utf8(output.stdout).unwrap()),
-            Err(e) => Err(format!("{e}")),
+            Err(e) => Err(PackageManagerError::from(e)),
         }
     }
-    fn install_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
+    fn install_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError> {
         let child = match Self::brew_install::<Vec<InstallOption>, _>(None, [package_name]) {
             Ok(child) => child,
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(PackageManagerError::from(e)),
         };
 
         match handle_spawned_command(rx, child) {
             Some(output) => Ok(output.out.unwrap()),
-            None => Err("could not execute command".to_string()),
+            None => Err(PackageManagerError::StaleCommand),
         }
     }
-    fn update_package(&self, rx: Receiver<bool>, package_name: String) -> Result<String, String> {
+    fn update_package(
+        &self,
+        rx: Receiver<bool>,
+        package_name: String,
+    ) -> Result<String, PackageManagerError> {
         let child = match Self::brew_upgrade(Some([package_name])) {
             Ok(child) => child,
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(PackageManagerError::from(e)),
         };
 
         match handle_spawned_command(rx, child) {
             Some(output) => Ok(output.out.unwrap()),
-            None => Err("could not execute command".to_string()),
+            None => Err(PackageManagerError::StaleCommand),
         }
     }
     fn uninstall_package(
         &self,
         rx: Receiver<bool>,
         package_name: String,
-    ) -> Result<String, String> {
+    ) -> Result<String, PackageManagerError> {
         let child = match Self::brew_uninstall::<Vec<UninstallOption>, _>(None, [package_name]) {
             Ok(child) => child,
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(PackageManagerError::from(e)),
         };
 
         match handle_spawned_command(rx, child) {
             Some(output) => Ok(output.out.unwrap()),
-            None => Err("could not execute command".to_string()),
+            None => Err(PackageManagerError::StaleCommand),
         }
     }
 }
